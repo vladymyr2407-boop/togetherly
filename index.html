@@ -1,0 +1,816 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Togetherly</title>
+<meta name="theme-color" content="#f6f4ef">
+<script src="https://telegram.org/js/telegram-web-app.js?59"></script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%232f6b5a'/%3E%3Ccircle cx='24' cy='32' r='11' fill='none' stroke='white' stroke-width='5'/%3E%3Ccircle cx='40' cy='32' r='11' fill='none' stroke='%23f2c46d' stroke-width='5'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #f6f4ef; --surface: #ffffff; --surface-2: #efece4; --line: #e2ddd1;
+  --ink: #1f2420; --ink-2: #5b625c; --ink-3: #8d938d;
+  --accent: #2f6b5a; --accent-ink: #ffffff; --accent-soft: #dcebe4;
+  --warn: #b4492f; --warn-soft: #f6e1da; --gold: #c8962d; --gold-soft: #f6ead0;
+  --fam: #4a5ea8; --fam-soft: #e2e6f6;
+  --radius: 14px; --shadow: 0 1px 2px rgba(30,30,20,.06), 0 6px 24px rgba(30,30,20,.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141714; --surface: #1c201c; --surface-2: #232823; --line: #2e342e;
+    --ink: #e9ece7; --ink-2: #a9b0a8; --ink-3: #737a72;
+    --accent: #6fb79c; --accent-ink: #0f1a15; --accent-soft: #23362e;
+    --warn: #e88a70; --warn-soft: #3a2420; --gold: #e2b65a; --gold-soft: #352c1a;
+    --fam: #9aa9ea; --fam-soft: #262b42;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 24px rgba(0,0,0,.25);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); }
+body { font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+.hidden { display: none !important; }
+
+/* layout */
+.app { max-width: 1120px; margin: 0 auto; padding: 0 16px 96px; }
+header.top { display: flex; align-items: center; gap: 12px; padding: 18px 0 10px; }
+.logo { width: 34px; height: 34px; flex: none; }
+.brand { font-weight: 700; font-size: 18px; letter-spacing: -.01em; }
+.today-label { color: var(--ink-2); font-size: 13px; }
+.spacer { flex: 1; }
+.who { font-size: 13px; color: var(--ink-2); display: flex; align-items: center; gap: 8px; }
+.ghost { background: none; border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px; color: var(--ink-2); }
+.ghost:hover { background: var(--surface-2); }
+
+.tabs { display: flex; gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 12px; margin: 6px 0 14px; overflow-x: auto; }
+.tab { flex: 1; min-width: max-content; border: 0; background: none; padding: 8px 14px; border-radius: 9px; color: var(--ink-2); font-weight: 600; font-size: 14px; white-space: nowrap; }
+.tab.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.tab .count { font-weight: 500; color: var(--ink-3); margin-left: 4px; }
+@media (max-width: 480px) { .tab { padding: 8px 6px; font-size: 13px; } .tab .count { margin-left: 2px; } .who > span { display: none; } }
+
+.quick { display: flex; gap: 8px; margin-bottom: 18px; }
+.quick input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 12px 14px; outline: none; }
+.quick input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.btn { border: 0; border-radius: 12px; padding: 10px 16px; font-weight: 600; background: var(--accent); color: var(--accent-ink); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.light { background: var(--surface-2); color: var(--ink); }
+.btn.danger { background: var(--warn-soft); color: var(--warn); }
+.hint { color: var(--ink-3); font-size: 12.5px; margin: -12px 2px 16px; }
+.hint code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; font-size: 12px; }
+
+/* list */
+.section { margin-bottom: 20px; }
+.section h3 { margin: 0 0 8px 4px; font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 700; display: flex; gap: 6px; align-items: center; }
+.section h3.warn { color: var(--warn); }
+.list { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.row { display: flex; align-items: center; gap: 12px; padding: 11px 12px 11px 14px; border-top: 1px solid var(--line); cursor: pointer; transition: background .12s; }
+.row:first-child { border-top: 0; }
+.row:hover { background: var(--surface-2); }
+.row.sel { background: var(--accent-soft); }
+.check { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--ink-3); background: none; display: grid; place-items: center; padding: 0; transition: all .15s; }
+.check:hover { border-color: var(--accent); background: var(--accent-soft); }
+.check.done { background: var(--accent); border-color: var(--accent); }
+.check svg { width: 14px; height: 14px; opacity: 0; }
+.check:hover svg, .check.done svg { opacity: 1; }
+.check:hover svg path { stroke: var(--accent); }
+.check.done svg path { stroke: var(--accent-ink); }
+.row-main { flex: 1; min-width: 0; }
+.row-title { overflow-wrap: anywhere; }
+.row.done .row-title { text-decoration: line-through; color: var(--ink-3); }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
+.chip { font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+.chip.late { background: var(--warn-soft); color: var(--warn); }
+.chip.fam { background: var(--fam-soft); color: var(--fam); }
+.chip.rem { background: var(--gold-soft); color: var(--gold); }
+.row-act { flex: none; border: 0; background: none; color: var(--ink-3); padding: 6px 8px; border-radius: 8px; font-size: 13px; }
+.row-act:hover { background: var(--surface); color: var(--ink); }
+.event { display: flex; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.event:first-child { border-top: 0; }
+.event .time { color: var(--fam); font-weight: 600; font-variant-numeric: tabular-nums; min-width: 92px; }
+.empty { text-align: center; color: var(--ink-3); padding: 48px 16px; }
+.empty .big { font-size: 34px; margin-bottom: 6px; }
+
+/* detail panel */
+.layout { display: grid; grid-template-columns: 1fr; gap: 20px; }
+@media (min-width: 900px) { .layout.with-detail { grid-template-columns: 1fr 400px; } }
+.detail { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; align-self: start; position: sticky; top: 14px; max-height: calc(100vh - 28px); overflow: auto; }
+@media (max-width: 899px) {
+  .detail { position: fixed; inset: auto 0 0 0; top: 8vh; max-height: none; border-radius: 18px 18px 0 0; z-index: 20; padding-bottom: 32px; }
+  .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 19; }
+}
+.d-head { display: flex; gap: 10px; align-items: flex-start; }
+.d-title { flex: 1; border: 0; background: none; font-size: 19px; font-weight: 700; padding: 2px 0; outline: none; resize: none; line-height: 1.3; width: 100%; }
+.d-title:focus { box-shadow: 0 2px 0 var(--accent); }
+.close { border: 0; background: var(--surface-2); width: 30px; height: 30px; border-radius: 50%; flex: none; color: var(--ink-2); font-size: 16px; line-height: 1; }
+.field { margin-top: 16px; }
+.field > label { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); font-weight: 700; margin-bottom: 6px; }
+.inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.input, select.input, textarea.input { border: 1px solid var(--line); background: var(--bg); border-radius: 10px; padding: 8px 10px; outline: none; min-width: 0; }
+.input:focus { border-color: var(--accent); }
+textarea.input { width: 100%; min-height: 70px; resize: vertical; }
+.seg { display: inline-flex; background: var(--surface-2); border-radius: 10px; padding: 3px; }
+.seg button { border: 0; background: none; padding: 6px 12px; border-radius: 8px; color: var(--ink-2); font-weight: 600; font-size: 13.5px; }
+.seg button.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.mini { border: 0; background: var(--surface-2); border-radius: 8px; padding: 6px 10px; font-size: 13px; color: var(--ink-2); }
+.mini:hover { color: var(--ink); }
+.rem-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.rem-item { display: flex; align-items: center; gap: 8px; background: var(--gold-soft); color: var(--ink); border-radius: 10px; padding: 6px 6px 6px 10px; font-size: 14px; }
+.rem-item span { flex: 1; }
+.rem-item button { border: 0; background: none; color: var(--ink-2); padding: 2px 8px; border-radius: 6px; }
+.rem-item button:hover { background: var(--surface); color: var(--warn); }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 13.5px; color: var(--ink-2); }
+.facts b { color: var(--ink); font-weight: 600; }
+.history { list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--ink-2); }
+.history li { padding: 5px 0; border-top: 1px dashed var(--line); }
+.history li:first-child { border-top: 0; }
+.history time { color: var(--ink-3); margin-right: 6px; font-variant-numeric: tabular-nums; }
+.d-actions { display: flex; gap: 8px; margin-top: 20px; }
+.d-actions .btn { flex: 1; }
+
+/* login */
+.login { max-width: 420px; margin: 12vh auto 0; text-align: center; background: var(--surface); padding: 32px 26px; border-radius: 20px; box-shadow: var(--shadow); }
+.login h1 { margin: 12px 0 6px; font-size: 24px; }
+.login p { color: var(--ink-2); margin: 0 0 22px; }
+.login .btn { width: 100%; padding: 13px; font-size: 16px; }
+.login .wait { margin-top: 16px; color: var(--ink-2); font-size: 14px; }
+
+/* topics */
+.topic-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+.topic-card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 14px 16px; cursor: pointer; border: 2px solid transparent; transition: border-color .12s; text-align: left; }
+.topic-card:hover { border-color: var(--line); }
+.topic-card.sel { border-color: var(--accent); }
+.topic-card .t-title { font-weight: 700; font-size: 16px; margin: 4px 0 2px; overflow-wrap: anywhere; }
+.topic-card .t-meta { color: var(--ink-2); font-size: 13px; }
+.topic-card .t-count { font-size: 26px; font-weight: 700; color: var(--accent); line-height: 1; margin-top: 10px; }
+.topic-card .t-count small { font-size: 12.5px; color: var(--ink-3); font-weight: 500; margin-left: 4px; }
+.new-topic { border: 2px dashed var(--line); background: none; box-shadow: none; display: grid; place-items: center; color: var(--ink-2); font-weight: 600; min-height: 120px; }
+.new-topic:hover { border-color: var(--accent); color: var(--accent); }
+.chip.topic { background: var(--accent-soft); color: var(--accent); }
+.mini-list { display: flex; flex-direction: column; gap: 2px; }
+.sub-row { display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: 8px; }
+.sub-row:hover { background: var(--surface-2); }
+.sub-row .check { width: 20px; height: 20px; }
+.sub-row .check svg { width: 12px; height: 12px; }
+.sub-row span { flex: 1; cursor: pointer; overflow-wrap: anywhere; }
+.sub-row.done span { text-decoration: line-through; color: var(--ink-3); }
+.comment { background: var(--bg); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; font-size: 14px; }
+.comment .c-head { display: flex; gap: 8px; align-items: baseline; font-size: 12.5px; color: var(--ink-3); margin-bottom: 2px; }
+.comment .c-head b { color: var(--ink); font-size: 13px; }
+.comment .c-head button { margin-left: auto; border: 0; background: none; color: var(--ink-3); font-size: 12px; padding: 0 4px; }
+.comment .c-head button:hover { color: var(--warn); }
+.comment .c-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.parent-link { font-size: 13px; color: var(--ink-2); margin: 4px 0 0 34px; }
+.parent-link a { color: var(--accent); cursor: pointer; }
+.members-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.members-pick label { display: flex; align-items: center; gap: 6px; background: var(--surface-2); padding: 5px 10px; border-radius: 999px; font-size: 13.5px; cursor: pointer; }
+
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; z-index: 50; box-shadow: var(--shadow); max-width: calc(100% - 32px); }
+.toast.err { background: var(--warn); color: #fff; }
+.loading { color: var(--ink-3); text-align: center; padding: 40px; }
+</style>
+</head>
+<body>
+<div class="app" id="app"><div class="loading">Завантаження…</div></div>
+<div id="toast" class="toast hidden"></div>
+
+<script>
+const API = "https://fciaawuxdyeqhnbqhljs.supabase.co/functions/v1/togetherly-api";
+const TG = window.Telegram?.WebApp?.initData ? window.Telegram.WebApp : null;
+const LS = TG ? "togetherly_tg_token" : "togetherly_token";
+const WDN = ["нд", "пн", "вт", "ср", "чт", "пт", "сб"];
+const MON = ["січ", "лют", "бер", "кві", "тра", "чер", "лип", "сер", "вер", "жов", "лис", "гру"];
+
+const state = { token: null, me: null, members: [], today: null, view: "today", data: null, sel: null, item: null, counts: {}, topics: [], selTopic: null, topic: null };
+const TOPIC_ICON = { personal: "🔒", family: "👨‍👩‍👧", custom: "👥" };
+const TOPIC_VIS = { personal: "особистий", family: "сімейний", custom: "для вибраних" };
+
+// ---------- утиліти ----------
+const $ = (s, r = document) => r.querySelector(s);
+const h = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+function store(k, v) { try { v === undefined ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} }
+function load(k) { try { return localStorage.getItem(k); } catch { return null; } }
+let toastTimer;
+function toast(msg, err = false) {
+  const t = $("#toast"); t.textContent = msg; t.className = "toast" + (err ? " err" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.add("hidden"), err ? 4500 : 2200);
+}
+function addDays(iso, n) { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+const wd = (iso) => new Date(iso + "T12:00:00Z").getUTCDay();
+function fmtDate(iso) {
+  if (!iso) return "без строку";
+  const t = state.today;
+  if (iso === t) return "сьогодні";
+  if (iso === addDays(t, 1)) return "завтра";
+  if (iso === addDays(t, -1)) return "вчора";
+  return `${WDN[wd(iso)]}, ${+iso.slice(8, 10)} ${MON[+iso.slice(5, 7) - 1]}`;
+}
+function fmtTs(ts) {
+  const d = new Date(ts);
+  const p = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(d);
+  const g = (x) => p.find((y) => y.type === x).value;
+  return `${fmtDate(`${g("year")}-${g("month")}-${g("day")}`)} ${g("hour")}:${g("minute")}`;
+}
+const memberName = (id) => state.members.find((m) => m.id === id)?.name ?? "—";
+function plural(n, one, few, many) { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many; }
+function recurText(unit, n) {
+  if (!unit || !n) return "";
+  if (n === 1) return { day: "щодня", week: "щотижня", month: "щомісяця", year: "щороку" }[unit];
+  const w = unit === "day" ? plural(n, "день", "дні", "днів") : unit === "week" ? plural(n, "тиждень", "тижні", "тижнів")
+    : unit === "month" ? plural(n, "місяць", "місяці", "місяців") : plural(n, "рік", "роки", "років");
+  return `кожні ${n} ${w}`;
+}
+const RECUR_PRESETS = [["d1", "day", 1], ["w1", "week", 1], ["w2", "week", 2], ["m1", "month", 1], ["y1", "year", 1]];
+
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, {
+    method: opts.method ?? "GET",
+    headers: { "content-type": "application/json", ...(state.token ? { authorization: "Bearer " + state.token } : {}) },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await r.json().catch(() => ({}));
+  if (r.status === 401 && state.token) { logout(true); throw new Error(data.error || "Потрібен вхід"); }
+  if (!r.ok) throw new Error(data.error || `Помилка ${r.status}`);
+  return data;
+}
+
+// ---------- вхід ----------
+const LOGO = `<svg class="logo" viewBox="0 0 64 64"><rect width="64" height="64" rx="16" fill="var(--accent)"/><circle cx="24" cy="32" r="11" fill="none" stroke="var(--accent-ink)" stroke-width="5"/><circle cx="40" cy="32" r="11" fill="none" stroke="#f2c46d" stroke-width="5"/></svg>`;
+
+function renderLogin(msg = "") {
+  $("#app").innerHTML = `
+    <div class="login">
+      ${LOGO.replace('class="logo"', 'class="logo" style="width:56px;height:56px"')}
+      <h1>Togetherly</h1>
+      <p>Задачі для тебе й сім'ї. Вхід підтверджується в Telegram-боті.</p>
+      <button class="btn" id="loginBtn">Увійти через Telegram</button>
+      <div class="wait ${msg ? "" : "hidden"}" id="wait">${h(msg)}</div>
+    </div>`;
+  $("#loginBtn").onclick = startLogin;
+}
+
+let pollTimer;
+async function startLogin() {
+  const btn = $("#loginBtn"); btn.disabled = true;
+  try {
+    const r = await api("/auth/start", { method: "POST" });
+    window.open(r.url, "_blank");
+    const w = $("#wait"); w.classList.remove("hidden");
+    w.innerHTML = `Відкрився чат з ботом — натисни там <b>Start</b>.<br>Якщо не відкрився: <a href="${h(r.url)}" target="_blank">відкрити бота</a>`;
+    const started = Date.now();
+    clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+      try {
+        const p = await api("/auth/poll", { method: "POST", body: { nonce: r.nonce } });
+        if (p.token) { clearInterval(pollTimer); state.token = p.token; store(LS, p.token); boot(); }
+        else if (p.expired || Date.now() - started > 600000) { clearInterval(pollTimer); renderLogin("Час на вхід минув. Спробуй ще раз."); }
+      } catch {}
+    }, 2000);
+  } catch (e) { toast(e.message, true); btn.disabled = false; }
+}
+
+async function logout(silent = false) {
+  if (!silent) { try { await api("/auth/logout", { method: "POST" }); } catch {} }
+  state.token = null; store(LS);
+  if (TG) { boot(); return; }
+  renderLogin(silent ? "Сесія завершилась, увійди знову." : "");
+}
+
+// ---------- головний екран ----------
+const VIEWS = [["today", "Сьогодні"], ["my", "Мої"], ["family", "Сімейні"], ["topics", "Топіки"], ["done", "Готово"]];
+
+function renderShell() {
+  const t = state.today;
+  $("#app").innerHTML = `
+    <header class="top">
+      ${LOGO}
+      <div><div class="brand">Togetherly</div><div class="today-label">${WDN[wd(t)]}, ${+t.slice(8, 10)} ${MON[+t.slice(5, 7) - 1]}</div></div>
+      <div class="spacer"></div>
+      <div class="who">${h(state.me.name)} ${TG ? `<button class="ghost hidden" id="homeBtn">📲 На екран</button>` : `<button class="ghost" id="logoutBtn">Вийти</button>`}</div>
+    </header>
+    <nav class="tabs" id="tabs">${VIEWS.map(([k, l]) => `<button class="tab ${state.view === k ? "on" : ""}" data-v="${k}">${l}<span class="count" data-c="${k}"></span></button>`).join("")}</nav>
+    <form class="quick" id="quick" autocomplete="off">
+      <input id="quickInput" placeholder="Нова задача… напр. «завтра 18:00 забрати посилку @${h(state.members.find((m) => m.id !== state.me.id)?.name ?? "Ім'я")}»">
+      <button class="btn" type="submit">Додати</button>
+    </form>
+    <div class="hint">Без дати — на сьогодні. <code>@Ім'я</code> — призначити, <code>@сім'я</code> — сімейна без відповідального, <code>#топік</code> — у топік, <code>щотижня</code> / <code>кожні 3 дні</code> — повторювана.</div>
+    <div class="layout" id="layout"><main id="list"><div class="loading">Завантаження…</div></main><aside id="detailWrap"></aside></div>`;
+  if ($("#logoutBtn")) $("#logoutBtn").onclick = () => logout();
+  if (TG) tgHomeButton();
+  $("#tabs").onclick = (e) => { const b = e.target.closest(".tab"); if (b) { state.view = b.dataset.v; renderTabs(); loadList(); } };
+  $("#quick").onsubmit = async (e) => {
+    e.preventDefault();
+    const inp = $("#quickInput"); const text = inp.value.trim(); if (!text) return;
+    inp.disabled = true;
+    try {
+      const it = await api("/items", { method: "POST", body: { text } });
+      inp.value = ""; toast("Задачу додано");
+      await loadList(); openItem(it.id, it);
+    } catch (e) { toast(e.message, true); }
+    inp.disabled = false; inp.focus();
+  };
+}
+function renderTabs() {
+  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("on", b.dataset.v === state.view));
+}
+
+async function loadTopics() {
+  try { state.topics = (await api("/topics")).topics; } catch (e) { toast(e.message, true); }
+  return state.topics;
+}
+
+async function loadList() {
+  const view = state.view;
+  if (view === "topics") {
+    await loadTopics();
+    if (state.view === "topics") renderTopics();
+    return;
+  }
+  try {
+    const d = await api("/tasks?view=" + view);
+    if (view !== state.view) return;
+    state.today = d.today; state.data = d;
+    if (view !== "done") state.counts[view] = d.items.length;
+    renderList();
+  } catch (e) { toast(e.message, true); }
+}
+
+function rowHtml(t, opts = {}) {
+  const late = t.status === "open" && t.due_date && t.due_date < state.today;
+  const chips = [];
+  if (opts.withDate !== false && t.due_date) chips.push(`<span class="chip ${late ? "late" : ""}">${fmtDate(t.due_date)}${t.due_time ? " · " + t.due_time : ""}</span>`);
+  else if (t.due_time) chips.push(`<span class="chip">${t.due_time}</span>`);
+  if (t.visibility === "family" && !opts.hideFam) chips.push(`<span class="chip fam">${t.assignee_name ? "👤 " + h(t.assignee_name) : "👨‍👩‍👧 сімейна"}</span>`);
+  if (t.reminders_count) chips.push(`<span class="chip rem">⏰ ${t.reminders_count}</span>`);
+  if (t.recur_unit) chips.push(`<span class="chip" title="Повторення">🔁 ${recurText(t.recur_unit, t.recur_interval)}</span>`);
+  if (t.topic_title && !opts.hideTopic) chips.push(`<span class="chip topic">📁 ${h(t.topic_title)}</span>`);
+  if (t.total_subtasks) chips.push(`<span class="chip" title="Підзадачі">☑ ${t.total_subtasks - t.open_subtasks}/${t.total_subtasks}</span>`);
+  if (t.comments_count) chips.push(`<span class="chip" title="Коментарі">💬 ${t.comments_count}</span>`);
+  if (t.reschedule_count) chips.push(`<span class="chip" title="Перенесень">↻ ${t.reschedule_count}</span>`);
+  if (opts.done && t.completed_at) chips.push(`<span class="chip">виконано ${fmtTs(t.completed_at)}</span>`);
+  const done = t.status === "done";
+  return `<div class="row ${done ? "done" : ""} ${state.sel === t.id ? "sel" : ""}" data-id="${t.id}">
+    <button class="check ${done ? "done" : ""}" data-act="${done ? "open" : "done"}" title="${done ? "Повернути" : "Виконано"}"><svg viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="row-main"><div class="row-title">${h(t.title)}</div>${chips.length ? `<div class="meta">${chips.join("")}</div>` : ""}</div>
+    ${done ? "" : `<button class="row-act" data-act="tomorrow" title="Перенести на завтра">→ завтра</button>`}
+  </div>`;
+}
+
+function section(title, items, opts = {}) {
+  if (!items.length) return "";
+  return `<div class="section"><h3 class="${opts.warn ? "warn" : ""}">${title} <span style="font-weight:500">${items.length}</span></h3><div class="list">${items.map((t) => rowHtml(t, opts)).join("")}</div></div>`;
+}
+
+function renderList() {
+  const d = state.data, t = state.today, items = d.items;
+  let html = "";
+  if (state.view === "today") {
+    if (d.events.length) html += `<div class="section"><h3>Події</h3><div class="list">${d.events.map((e) => `<div class="event"><span class="time">${e.start}–${e.end}</span><span>${h(e.title)}</span></div>`).join("")}</div></div>`;
+    html += section("Сьогодні", items.filter((x) => x.due_date === t), { withDate: false });
+    html += section("Прострочені", items.filter((x) => x.due_date < t), { warn: true });
+    if (!html) html = `<div class="empty"><div class="big">🌿</div>На сьогодні все. Можна відпочити.</div>`;
+  } else if (state.view === "my") {
+    html += section("Прострочені", items.filter((x) => x.due_date && x.due_date < t), { warn: true });
+    html += section("Сьогодні", items.filter((x) => x.due_date === t), { withDate: false });
+    html += section("Завтра", items.filter((x) => x.due_date === addDays(t, 1)), { withDate: false });
+    html += section("Далі", items.filter((x) => x.due_date && x.due_date > addDays(t, 1)));
+    html += section("Без строку", items.filter((x) => !x.due_date));
+    if (!html) html = `<div class="empty"><div class="big">✨</div>Відкритих задач немає.</div>`;
+  } else if (state.view === "family") {
+    html += section("Без відповідального", items.filter((x) => !x.assignee_id), { hideFam: true });
+    for (const m of state.members) html += section(h(m.name) + (m.id === state.me.id ? " (я)" : ""), items.filter((x) => x.assignee_id === m.id), { hideFam: true });
+    if (!html) html = `<div class="empty"><div class="big">🏡</div>Сімейних задач немає.</div>`;
+  } else {
+    html += section("Виконані за 7 днів", items, { done: true });
+    if (!html) html = `<div class="empty"><div class="big">📭</div>За тиждень ще нічого не виконано.</div>`;
+  }
+  $("#list").innerHTML = html;
+  for (const [k] of VIEWS) { const c = document.querySelector(`[data-c="${k}"]`); if (c) c.textContent = state.counts[k] ?? ""; }
+  $("#list").onclick = onListClick;
+}
+
+function renderTopics() {
+  const ts = state.topics;
+  $("#list").innerHTML = `<div class="topic-grid">
+    ${ts.map((t) => `<div class="topic-card ${state.selTopic === t.id ? "sel" : ""}" data-topic="${t.id}">
+      <div class="t-meta">${TOPIC_ICON[t.visibility]} ${TOPIC_VIS[t.visibility]}${t.owner_id !== state.me.id ? ` · ${h(t.owner_name)}` : ""}</div>
+      <div class="t-title">${h(t.title)}</div>
+      <div class="t-count">${t.open_count}<small>відкритих</small></div>
+    </div>`).join("")}
+    <button class="topic-card new-topic" id="newTopic">+ Новий топік</button>
+  </div>
+  ${ts.length ? "" : `<div class="empty" style="padding-top:24px">Топік збирає задачі на одну тему: «Дім», «Школа», «Документи»…</div>`}`;
+  const c = document.querySelector('[data-c="topics"]'); if (c) c.textContent = ts.length || "";
+  $("#list").onclick = (e) => {
+    if (e.target.closest("#newTopic")) return createTopicPrompt();
+    const card = e.target.closest("[data-topic]"); if (card) openTopic(card.dataset.topic);
+  };
+}
+
+async function createTopicPrompt() {
+  const title = prompt("Назва нового топіка (наприклад: Дім, Школа, Документи)");
+  if (!title || !title.trim()) return;
+  try {
+    const t = await api("/topics", { method: "POST", body: { title: title.trim(), visibility: "family" } });
+    toast("Топік створено");
+    await loadTopics(); if (state.view === "topics") renderTopics();
+    openTopic(t.id, t);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function openTopic(id, preset) {
+  state.sel = null; state.item = null; state.selTopic = id;
+  document.querySelectorAll(".topic-card").forEach((c) => c.classList.toggle("sel", c.dataset.topic === id));
+  if (preset?.items) { state.topic = preset; renderTopicDetail(); }
+  try { state.topic = await api("/topics/" + id); renderTopicDetail(); }
+  catch (e) { toast(e.message, true); closeDetail(); }
+}
+
+async function patchTopic(body, msg) {
+  try {
+    const t = await api("/topics/" + state.selTopic, { method: "PATCH", body });
+    if (msg) toast(msg);
+    await loadTopics(); if (state.view === "topics") renderTopics();
+    if (t.status === "archived") closeDetail(); else { state.topic = t; renderTopicDetail(); }
+  } catch (e) { toast(e.message, true); }
+}
+
+function commentsHtml(list) {
+  return list.length ? list.map((c) => `<div class="comment"><div class="c-head"><b>${h(c.author_name)}</b>${fmtTs(c.created_at)}${c.author_id === state.me.id ? `<button data-delc="${c.id}" title="Видалити">✕</button>` : ""}</div><div class="c-body">${h(c.body)}</div></div>`).join("")
+    : `<div style="color:var(--ink-3);font-size:13.5px;margin-bottom:6px">Коментарів ще немає</div>`;
+}
+function bindComments(onDone) {
+  document.querySelectorAll("[data-delc]").forEach((b) => b.onclick = async () => {
+    if (!confirm("Видалити коментар?")) return;
+    try { onDone(await api("/comments/" + b.dataset.delc, { method: "DELETE" })); toast("Коментар видалено"); } catch (e) { toast(e.message, true); }
+  });
+}
+
+function renderTopicDetail() {
+  const t = state.topic; if (!t) return;
+  const canManage = t.owner_id === state.me.id || state.me.role === "admin";
+  const others = state.members.filter((m) => m.id !== t.owner_id);
+  const open = t.items.filter((x) => x.status === "open"), done = t.items.filter((x) => x.status === "done");
+  $("#layout").classList.add("with-detail");
+  $("#detailWrap").innerHTML = `
+    <div class="scrim" id="scrim"></div>
+    <div class="detail">
+      <div class="d-head">
+        <div style="font-size:22px;margin-top:2px">${TOPIC_ICON[t.visibility]}</div>
+        <textarea class="d-title" id="tTitle" rows="1" ${canManage ? "" : "readonly"}>${h(t.title)}</textarea>
+        <button class="close" id="dClose" title="Закрити">✕</button>
+      </div>
+      <div class="field"><label>Хто бачить</label>
+        ${canManage ? `<div class="seg" id="tVis">
+          <button data-v="personal" class="${t.visibility === "personal" ? "on" : ""}">🔒 Лише я</button>
+          <button data-v="family" class="${t.visibility === "family" ? "on" : ""}">👨‍👩‍👧 Сім'я</button>
+          <button data-v="custom" class="${t.visibility === "custom" ? "on" : ""}">👥 Вибрані</button>
+        </div>
+        ${t.visibility === "custom" ? `<div class="members-pick">${others.map((m) => `<label><input type="checkbox" data-mem="${m.id}" ${t.member_ids.includes(m.id) ? "checked" : ""}> ${h(m.name)}</label>`).join("")}</div>
+          <div style="font-size:12.5px;color:var(--ink-3);margin-top:6px">${h(t.owner_name)} як власник бачить топік завжди.</div>` : ""}`
+        : `<div style="font-size:14px">${TOPIC_ICON[t.visibility]} ${TOPIC_VIS[t.visibility]} · власник ${h(t.owner_name)}</div>`}
+      </div>
+      <div class="field"><label>Опис</label>
+        <textarea class="input" id="tDesc" placeholder="Про що цей топік…" ${canManage ? "" : "readonly"}>${h(t.description ?? "")}</textarea>
+      </div>
+      <div class="field"><label>Задачі · ${open.length} відкритих</label>
+        <form class="inline" id="tAdd" style="margin-bottom:8px"><input class="input" id="tAddInput" style="flex:1" placeholder="Нова задача в цьому топіку…"><button class="mini" type="submit">+ Додати</button></form>
+        <div class="list" style="box-shadow:none;border:1px solid var(--line)">${open.map((x) => rowHtml(x, { hideTopic: true })).join("") || `<div class="empty" style="padding:18px">Відкритих задач немає</div>`}</div>
+        ${done.length ? `<details style="margin-top:8px"><summary style="cursor:pointer;color:var(--ink-2);font-size:13.5px">Виконані (${done.length})</summary><div class="list" style="box-shadow:none;border:1px solid var(--line);margin-top:6px">${done.map((x) => rowHtml(x, { hideTopic: true })).join("")}</div></details>` : ""}
+      </div>
+      <div class="field"><label>Коментарі</label>
+        ${commentsHtml(t.comments)}
+        <div class="inline"><textarea class="input" id="tComment" rows="2" style="flex:1;min-height:44px" placeholder="Написати коментар…"></textarea><button class="mini" id="tCommentBtn">Надіслати</button></div>
+      </div>
+      ${canManage ? `<div class="d-actions"><button class="btn light" id="tArchive">📦 В архів</button></div>` : ""}
+    </div>`;
+  const title = $("#tTitle");
+  const fit = () => { title.style.height = "auto"; title.style.height = title.scrollHeight + "px"; };
+  fit(); title.oninput = fit;
+  title.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); title.blur(); } };
+  if (canManage) title.onblur = () => { const v = title.value.trim(); if (v && v !== t.title) patchTopic({ title: v }, "Назву змінено"); else title.value = t.title; };
+  $("#dClose").onclick = closeDetail; $("#scrim").onclick = closeDetail;
+  if ($("#tVis")) $("#tVis").onclick = (e) => { const b = e.target.closest("button"); if (b && b.dataset.v !== t.visibility) patchTopic({ visibility: b.dataset.v }, "Видимість змінено"); };
+  document.querySelectorAll("[data-mem]").forEach((cb) => cb.onchange = () => {
+    const ids = [...document.querySelectorAll("[data-mem]:checked")].map((x) => x.dataset.mem);
+    patchTopic({ member_ids: ids }, "Доступ оновлено");
+  });
+  if (canManage) $("#tDesc").onblur = (e) => { if ((e.target.value || "") !== (t.description || "")) patchTopic({ description: e.target.value }, "Опис збережено"); };
+  $("#tAdd").onsubmit = async (e) => {
+    e.preventDefault();
+    const v = $("#tAddInput").value.trim(); if (!v) return;
+    try { await api("/items", { method: "POST", body: { title: v, topic_id: t.id, visibility: t.visibility === "personal" ? "personal" : "family", due_date: state.today } }); toast("Задачу додано"); openTopic(t.id); loadTopics().then(() => state.view === "topics" && renderTopics()); }
+    catch (e) { toast(e.message, true); }
+  };
+  $("#detailWrap .list") && ($("#detailWrap").onclick = async (e) => {
+    const row = e.target.closest(".row"); if (!row) return;
+    const act = e.target.closest("[data-act]")?.dataset.act;
+    if (act === "done" || act === "open") { e.stopPropagation(); await patch(row.dataset.id, { status: act }, act === "done" ? "Виконано ✓" : "Повернуто"); openTopic(t.id); return; }
+    if (act === "tomorrow") { e.stopPropagation(); await patch(row.dataset.id, { due_date: addDays(state.today, 1) }, "Перенесено на завтра"); openTopic(t.id); return; }
+    openItem(row.dataset.id);
+  });
+  $("#tCommentBtn").onclick = async () => {
+    const body = $("#tComment").value.trim(); if (!body) return;
+    try { state.topic = await api(`/topics/${t.id}/comments`, { method: "POST", body: { body } }); renderTopicDetail(); toast("Коментар додано"); }
+    catch (e) { toast(e.message, true); }
+  };
+  bindComments((t2) => { state.topic = t2; renderTopicDetail(); });
+  if ($("#tArchive")) $("#tArchive").onclick = () => { if (confirm(`Перенести «${t.title}» в архів? Задачі залишаться.`)) patchTopic({ status: "archived" }, "Топік в архіві"); };
+}
+
+async function onListClick(e) {
+  const row = e.target.closest(".row"); if (!row) return;
+  const id = row.dataset.id;
+  const act = e.target.closest("[data-act]")?.dataset.act;
+  if (act === "done" || act === "open") {
+    e.stopPropagation();
+    if (act === "done") row.classList.add("done"), row.querySelector(".check").classList.add("done");
+    await patch(id, { status: act }, act === "done" ? "Виконано ✓" : "Повернуто у роботу");
+    return;
+  }
+  if (act === "tomorrow") { e.stopPropagation(); await patch(id, { due_date: addDays(state.today, 1) }, "Перенесено на завтра"); return; }
+  openItem(id);
+}
+
+async function patch(id, body, msg) {
+  try {
+    const it = await api("/items/" + id, { method: "PATCH", body });
+    if (it.next_instance) msg = `${msg ?? "Виконано"} · наступна ${fmtDate(it.next_instance.due_date)}`;
+    if (msg) toast(msg);
+    await loadList();
+    if (state.sel === id) { if (it.status === "deleted") closeDetail(); else { state.item = it; renderDetail(); } }
+    return it;
+  } catch (e) { toast(e.message, true); loadList(); }
+}
+
+// ---------- картка ----------
+async function openItem(id, preset) {
+  state.sel = id; state.selTopic = null; state.topic = null;
+  document.querySelectorAll(".topic-card.sel").forEach((c) => c.classList.remove("sel"));
+  document.querySelectorAll(".row").forEach((r) => r.classList.toggle("sel", r.dataset.id === id));
+  if (preset?.history) { state.item = preset; renderDetail(); }
+  try { state.item = await api("/items/" + id); renderDetail(); }
+  catch (e) { toast(e.message, true); closeDetail(); }
+}
+function closeDetail() {
+  state.sel = null; state.item = null; state.selTopic = null; state.topic = null;
+  document.querySelectorAll(".topic-card.sel").forEach((c) => c.classList.remove("sel"));
+  $("#detailWrap").innerHTML = ""; $("#layout").classList.remove("with-detail");
+  document.querySelectorAll(".row.sel").forEach((r) => r.classList.remove("sel"));
+}
+
+const ACTIONS = {
+  created: () => "створено",
+  due_set: (e) => `строк: ${fmtDate(e.new_value?.due_date)}${e.new_value?.due_time ? " " + e.new_value.due_time.slice(0, 5) : ""}`,
+  due_changed: (e) => `перенесено: ${fmtDate(e.old_value?.due_date)}${e.old_value?.due_time ? " " + e.old_value.due_time.slice(0, 5) : ""} → ${fmtDate(e.new_value?.due_date)}${e.new_value?.due_time ? " " + e.new_value.due_time.slice(0, 5) : ""}`,
+  status_changed: (e) => ({ done: "виконано", open: "повернуто у роботу", deleted: "видалено" }[e.new_value] ?? "статус змінено"),
+  assigned: (e) => e.new_value ? `відповідальний: ${memberName(e.new_value)}` : "відповідального знято",
+  visibility_changed: (e) => e.new_value === "family" ? "стала сімейною" : "стала особистою",
+  renamed: (e) => `перейменовано (було «${e.old_value}»)`,
+  topic_changed: () => "змінено топік",
+  skipped: (e) => `пропущено, наступний раз ${fmtDate(e.new_value?.due_date)}`,
+  recurrence_changed: (e) => e.new_value?.unit ? `повторення: ${recurText(e.new_value.unit, e.new_value.interval)}` : "повторення вимкнено",
+  recurred: (e) => `створено автоматично після виконання (строк був ${fmtDate(e.new_value?.from_due)})`,
+  time_changed: () => "змінено час",
+};
+
+function renderDetail() {
+  const it = state.item; if (!it) return;
+  const fam = it.visibility === "family";
+  const done = it.status === "done";
+  const isSub = !!it.parent_id;
+  const recurKey = !it.recur_unit ? "" : (RECUR_PRESETS.find(([, u, n]) => u === it.recur_unit && n === it.recur_interval)?.[0] ?? "custom");
+  const topicChoices = state.topics.filter((t) => !fam || t.visibility !== "personal");
+  if (it.topic_id && !topicChoices.some((t) => t.id === it.topic_id)) topicChoices.push({ id: it.topic_id, title: it.topic_title, visibility: it.topic_visibility });
+  const topicOpts = [`<option value="">— без топіка —</option>`]
+    .concat(topicChoices.map((t) => `<option value="${t.id}" ${it.topic_id === t.id ? "selected" : ""}>${TOPIC_ICON[t.visibility] ?? "📁"} ${h(t.title)}</option>`)).join("");
+  $("#detailWrap").onclick = null;
+  const tomorrow = addDays(state.today, 1);
+  const memberOpts = [`<option value="">— ${fam ? "без відповідального" : "немає"} —</option>`]
+    .concat(state.members.map((m) => `<option value="${m.id}" ${it.assignee_id === m.id ? "selected" : ""}>${h(m.name)}${m.id === state.me.id ? " (я)" : ""}</option>`)).join("");
+  $("#layout").classList.add("with-detail");
+  $("#detailWrap").innerHTML = `
+    <div class="scrim" id="scrim"></div>
+    <div class="detail">
+      <div class="d-head">
+        <button class="check ${done ? "done" : ""}" id="dCheck" style="margin-top:4px"><svg viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        <textarea class="d-title" id="dTitle" rows="1">${h(it.title)}</textarea>
+        <button class="close" id="dClose" title="Закрити">✕</button>
+      </div>
+      ${isSub ? `<div class="parent-link">↳ підзадача до <a id="dParent">${h(it.parent_title ?? "")}</a></div>` : ""}
+
+      <div class="field"><label>Строк</label>
+        <div class="inline">
+          <input type="date" class="input" id="dDate" value="${it.due_date ?? ""}">
+          <input type="time" class="input" id="dTime" value="${it.due_time ?? ""}" ${it.due_date ? "" : "disabled"}>
+          ${it.due_time ? `<button class="mini" id="dNoTime">без часу</button>` : ""}
+        </div>
+        <div class="inline" style="margin-top:8px">
+          <button class="mini" data-date="${state.today}">Сьогодні</button>
+          <button class="mini" data-date="${tomorrow}">Завтра</button>
+          <button class="mini" data-date="${addDays(state.today, 7)}">+ тиждень</button>
+        </div>
+      </div>
+
+      ${isSub ? `<div class="field"><label>Видимість, топік, відповідальний</label><div style="font-size:13.5px;color:var(--ink-2)">Беруться з батьківської задачі: ${fam ? "👨‍👩‍👧 сімейна" : "🔒 особиста"}${it.assignee_name ? ` · 👤 ${h(it.assignee_name)}` : ""}${it.topic_title ? ` · 📁 ${h(it.topic_title)}` : ""}</div></div>` : `
+      <div class="field"><label>Хто бачить</label>
+        <div class="seg" id="dVis">
+          <button data-v="personal" class="${fam ? "" : "on"}">🔒 Особиста</button>
+          <button data-v="family" class="${fam ? "on" : ""}">👨‍👩‍👧 Сімейна</button>
+        </div>
+      </div>
+
+      <div class="field"><label>Відповідальний</label>
+        <select class="input" id="dAssignee" style="width:100%">${memberOpts}</select>
+      </div>
+
+      <div class="field"><label>Топік</label>
+        <select class="input" id="dTopic" style="width:100%">${topicOpts}</select>
+      </div>
+
+      <div class="field"><label>Повторення</label>
+        <div class="inline">
+          <select class="input" id="dRecur">
+            <option value="">Не повторюється</option>
+            ${RECUR_PRESETS.map(([k, u, n]) => `<option value="${k}" ${recurKey === k ? "selected" : ""}>${recurText(u, n)[0].toUpperCase() + recurText(u, n).slice(1)}</option>`).join("")}
+            <option value="custom" ${recurKey === "custom" ? "selected" : ""}>Інше…</option>
+          </select>
+          ${it.recur_unit && !done ? `<button class="mini" id="dSkip" title="Перенести на наступний раз без лічильника перенесень">⏭ Пропустити раз</button>` : ""}
+        </div>
+        <div class="inline ${recurKey === "custom" ? "" : "hidden"}" id="dRecurCustom" style="margin-top:8px">
+          кожні <input type="number" class="input" id="dRecurN" min="1" max="365" style="width:72px" value="${it.recur_interval ?? 2}">
+          <select class="input" id="dRecurU">
+            ${[["day", "днів"], ["week", "тижнів"], ["month", "місяців"], ["year", "років"]].map(([u, l]) => `<option value="${u}" ${it.recur_unit === u ? "selected" : ""}>${l}</option>`).join("")}
+          </select>
+          <button class="mini" id="dRecurSave">Зберегти</button>
+        </div>
+        ${it.recur_unit ? `<div style="font-size:12.5px;color:var(--ink-3);margin-top:6px">Наступна задача з'явиться після виконання цієї; рахую від дати строку.</div>` : ""}
+      </div>
+
+      <div class="field"><label>Підзадачі${it.subtasks.length ? ` · ${it.subtasks.filter((s) => s.status === "done").length}/${it.subtasks.length}` : ""}</label>
+        <div class="mini-list">${it.subtasks.map((s) => `<div class="sub-row ${s.status === "done" ? "done" : ""}"><button class="check ${s.status === "done" ? "done" : ""}" data-sub="${s.id}" data-st="${s.status}"><svg viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><span data-open="${s.id}">${h(s.title)}</span></div>`).join("")}</div>
+        <form class="inline" id="sAdd" style="margin-top:6px"><input class="input" id="sAddInput" style="flex:1" placeholder="Нова підзадача…"><button class="mini" type="submit">+ Додати</button></form>
+      </div>`}
+
+      <div class="field"><label>Нагадування</label>
+        <div class="rem-list">${it.reminders.length ? it.reminders.map((r) => `<div class="rem-item"><span>⏰ ${fmtDate(r.date)}, ${r.time}${r.recipient_name ? ` · для ${h(r.recipient_name)}` : ""}</span><button data-rem="${r.id}" title="Видалити">✕</button></div>`).join("") : `<div style="color:var(--ink-3);font-size:13.5px">Немає</div>`}</div>
+        ${done ? "" : `<div class="inline">
+          <input type="date" class="input" id="rDate" value="${it.due_date && it.due_date >= state.today ? it.due_date : state.today}">
+          <input type="time" class="input" id="rTime" value="${it.due_time ?? "09:00"}">
+          <button class="mini" id="rAdd">+ Додати</button>
+        </div>`}
+      </div>
+
+      <div class="field"><label>Опис</label>
+        <textarea class="input" id="dDesc" placeholder="Деталі, посилання, нотатки…">${h(it.description ?? "")}</textarea>
+      </div>
+
+      <div class="field"><label>Коментарі</label>
+        ${commentsHtml(it.comments)}
+        <div class="inline"><textarea class="input" id="cText" rows="2" style="flex:1;min-height:44px" placeholder="Написати коментар…"></textarea><button class="mini" id="cBtn">Надіслати</button></div>
+      </div>
+
+      <div class="field"><label>Інформація</label>
+        <div class="facts">
+          <span>Створив(ла)</span><b>${h(it.author_name)}, ${fmtTs(it.created_at)}</b>
+          ${it.original_due_date ? `<span>Початковий строк</span><b>${fmtDate(it.original_due_date)}</b>` : ""}
+          <span>Перенесень</span><b>${it.reschedule_count}</b>
+          ${it.completed_at ? `<span>Виконано</span><b>${fmtTs(it.completed_at)}</b>` : ""}
+        </div>
+      </div>
+
+      <div class="field"><label>Історія</label>
+        <ul class="history">${it.history.map((e) => `<li><time>${fmtTs(e.created_at)}</time>${h(e.actor_name ?? "")} — ${h((ACTIONS[e.action] ?? (() => e.action))(e))}</li>`).join("")}</ul>
+      </div>
+
+      <div class="d-actions">
+        <button class="btn ${done ? "light" : ""}" id="dDone">${done ? "↩ Повернути у роботу" : "✓ Виконано"}</button>
+        <button class="btn danger" id="dDelete">Видалити</button>
+      </div>
+    </div>`;
+
+  const id = it.id;
+  const title = $("#dTitle");
+  const fit = () => { title.style.height = "auto"; title.style.height = title.scrollHeight + "px"; };
+  fit(); title.oninput = fit;
+  title.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); title.blur(); } };
+  title.onblur = () => { const v = title.value.trim(); if (v && v !== it.title) patch(id, { title: v }, "Назву змінено"); else title.value = it.title; };
+  $("#dClose").onclick = closeDetail;
+  $("#scrim").onclick = closeDetail;
+  $("#dCheck").onclick = $("#dDone").onclick = () => patch(id, { status: done ? "open" : "done" }, done ? "Повернуто у роботу" : "Виконано ✓");
+  $("#dDelete").onclick = () => { if (confirm(`Видалити «${it.title}»?`)) patch(id, { status: "deleted" }, "Видалено"); };
+  $("#dDate").onchange = (e) => patch(id, { due_date: e.target.value || null }, "Строк змінено");
+  $("#dTime").onchange = (e) => patch(id, { due_time: e.target.value || null }, "Час змінено");
+  if ($("#dNoTime")) $("#dNoTime").onclick = () => patch(id, { due_time: null }, "Час прибрано");
+  document.querySelectorAll("[data-date]").forEach((b) => b.onclick = () => patch(id, { due_date: b.dataset.date }, "Строк змінено"));
+  if ($("#dVis")) $("#dVis").onclick = (e) => { const b = e.target.closest("button"); if (b && b.dataset.v !== it.visibility) patch(id, { visibility: b.dataset.v }, b.dataset.v === "family" ? "Тепер сімейна" : "Тепер особиста"); };
+  if ($("#dAssignee")) $("#dAssignee").onchange = (e) => patch(id, { assignee_id: e.target.value || null }, "Відповідального змінено");
+  if ($("#dTopic")) $("#dTopic").onchange = (e) => patch(id, { topic_id: e.target.value || null }, "Топік змінено");
+  if ($("#dRecur")) $("#dRecur").onchange = (e) => {
+    const v = e.target.value;
+    if (v === "custom") { $("#dRecurCustom").classList.remove("hidden"); return; }
+    const p = RECUR_PRESETS.find(([k]) => k === v);
+    patch(id, { recur: p ? { unit: p[1], n: p[2] } : null }, p ? `Повторення: ${recurText(p[1], p[2])}` : "Більше не повторюється");
+  };
+  if ($("#dRecurSave")) $("#dRecurSave").onclick = () => {
+    const n = parseInt($("#dRecurN").value, 10), u = $("#dRecurU").value;
+    if (!(n >= 1 && n <= 365)) return toast("Вкажи число від 1 до 365", true);
+    patch(id, { recur: { unit: u, n } }, `Повторення: ${recurText(u, n)}`);
+  };
+  if ($("#dSkip")) $("#dSkip").onclick = async () => {
+    try { state.item = await api(`/items/${id}/skip`, { method: "POST" }); renderDetail(); loadList(); toast(`Пропущено · наступний раз ${fmtDate(state.item.due_date)}`); }
+    catch (e) { toast(e.message, true); }
+  };
+  if ($("#dParent")) $("#dParent").onclick = () => openItem(it.parent_id);
+  document.querySelectorAll("[data-sub]").forEach((b) => b.onclick = async () => {
+    try { await api("/items/" + b.dataset.sub, { method: "PATCH", body: { status: b.dataset.st === "done" ? "open" : "done" } }); openItem(id); loadList(); }
+    catch (e) { toast(e.message, true); }
+  });
+  document.querySelectorAll("[data-open]").forEach((s) => s.onclick = () => openItem(s.dataset.open));
+  if ($("#sAdd")) $("#sAdd").onsubmit = async (e) => {
+    e.preventDefault();
+    const v = $("#sAddInput").value.trim(); if (!v) return;
+    try { state.item = await api(`/items/${id}/subtasks`, { method: "POST", body: { titles: v.split("\n") } }); renderDetail(); loadList(); $("#sAddInput")?.focus(); }
+    catch (e) { toast(e.message, true); }
+  };
+  $("#cBtn").onclick = async () => {
+    const body = $("#cText").value.trim(); if (!body) return;
+    try { state.item = await api(`/items/${id}/comments`, { method: "POST", body: { body } }); renderDetail(); loadList(); toast("Коментар додано"); }
+    catch (e) { toast(e.message, true); }
+  };
+  bindComments((it2) => { state.item = it2; renderDetail(); loadList(); });
+  $("#dDesc").onblur = (e) => { if ((e.target.value || "") !== (it.description || "")) patch(id, { description: e.target.value }, "Опис збережено"); };
+  document.querySelectorAll("[data-rem]").forEach((b) => b.onclick = async () => {
+    try { state.item = await api("/reminders/" + b.dataset.rem, { method: "DELETE" }); renderDetail(); loadList(); toast("Нагадування видалено"); }
+    catch (e) { toast(e.message, true); }
+  });
+  if ($("#rAdd")) $("#rAdd").onclick = async () => {
+    try {
+      state.item = await api(`/items/${id}/reminders`, { method: "POST", body: { date: $("#rDate").value, time: $("#rTime").value } });
+      renderDetail(); loadList(); toast("Нагадування додано");
+    } catch (e) { toast(e.message, true); }
+  };
+}
+
+// ---------- Telegram Mini App ----------
+const PALETTE = {
+  light: { "--bg": "#f6f4ef", "--surface": "#ffffff", "--surface-2": "#efece4", "--line": "#e2ddd1", "--ink": "#1f2420", "--ink-2": "#5b625c", "--ink-3": "#8d938d",
+    "--accent": "#2f6b5a", "--accent-ink": "#ffffff", "--accent-soft": "#dcebe4", "--warn": "#b4492f", "--warn-soft": "#f6e1da", "--gold": "#c8962d", "--gold-soft": "#f6ead0", "--fam": "#4a5ea8", "--fam-soft": "#e2e6f6" },
+  dark: { "--bg": "#141714", "--surface": "#1c201c", "--surface-2": "#232823", "--line": "#2e342e", "--ink": "#e9ece7", "--ink-2": "#a9b0a8", "--ink-3": "#737a72",
+    "--accent": "#6fb79c", "--accent-ink": "#0f1a15", "--accent-soft": "#23362e", "--warn": "#e88a70", "--warn-soft": "#3a2420", "--gold": "#e2b65a", "--gold-soft": "#352c1a", "--fam": "#9aa9ea", "--fam-soft": "#262b42" },
+};
+function tgTheme() {
+  const root = document.documentElement.style, p = TG.themeParams || {};
+  const base = PALETTE[TG.colorScheme === "dark" ? "dark" : "light"];
+  for (const [k, v] of Object.entries(base)) root.setProperty(k, v);
+  const map = { "--bg": p.secondary_bg_color, "--surface": p.section_bg_color || p.bg_color, "--ink": p.text_color, "--ink-2": p.subtitle_text_color || p.hint_color, "--ink-3": p.hint_color, "--line": p.section_separator_color };
+  for (const [k, v] of Object.entries(map)) if (v) root.setProperty(k, v);
+  try { TG.setHeaderColor(p.secondary_bg_color ? "secondary_bg_color" : "bg_color"); TG.setBackgroundColor(p.secondary_bg_color || p.bg_color || base["--bg"]); } catch {}
+}
+function tgHomeButton() {
+  const b = $("#homeBtn");
+  if (!b || !TG.isVersionAtLeast?.("8.0") || !TG.addToHomeScreen) return;
+  b.onclick = () => TG.addToHomeScreen();
+  try { TG.checkHomeScreenStatus((s) => { if (s !== "added" && s !== "unsupported") b.classList.remove("hidden"); }); } catch {}
+}
+function tgSyncBack() {
+  const open = !!(state.sel || state.selTopic);
+  try { open ? TG.BackButton.show() : TG.BackButton.hide(); } catch {}
+}
+if (TG) {
+  TG.ready(); TG.expand();
+  try { if (TG.isVersionAtLeast("7.7")) TG.disableVerticalSwipes(); } catch {}
+  tgTheme();
+  TG.onEvent("themeChanged", tgTheme);
+  TG.BackButton.onClick(() => closeDetail());
+  const _open = openItem, _openT = openTopic, _close = closeDetail;
+  openItem = async (...a) => { const r = _open(...a); tgSyncBack(); return r; };
+  openTopic = async (...a) => { const r = _openT(...a); tgSyncBack(); return r; };
+  closeDetail = (...a) => { _close(...a); tgSyncBack(); };
+  TG.onEvent("homeScreenAdded", () => { $("#homeBtn")?.classList.add("hidden"); toast("Ярлик додано на екран"); });
+}
+
+// ---------- старт ----------
+async function boot() {
+  state.token = state.token || load(LS);
+  if (!state.token && TG) {
+    try { state.token = (await api("/auth/telegram", { method: "POST", body: { initData: TG.initData } })).token; store(LS, state.token); }
+    catch (e) { renderLogin(e.message); return; }
+  }
+  if (!state.token) { renderLogin(); return; }
+  try {
+    const me = await api("/me");
+    state.me = me.member; state.members = me.members; state.today = me.today;
+    renderShell(); loadTopics(); await loadList();
+    for (const v of ["today", "my", "family"]) if (v !== state.view) api("/tasks?view=" + v).then((d) => { state.counts[v] = d.items.length; const c = document.querySelector(`[data-c="${v}"]`); if (c) c.textContent = d.items.length; }).catch(() => {});
+  } catch (e) { if (state.token) toast(e.message, true); }
+}
+
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDetail(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden && state.me) { loadList(); if (state.view !== "topics") loadTopics(); } });
+setInterval(() => { if (!document.hidden && state.me) loadList(); }, 60000);
+boot();
+</script>
+</body>
+</html>
