@@ -131,7 +131,8 @@ textarea.input { width: 100%; min-height: 70px; resize: vertical; }
 .history li:first-child { border-top: 0; }
 .history time { color: var(--ink-3); margin-right: 6px; font-variant-numeric: tabular-nums; }
 .d-actions { display: flex; gap: 8px; margin-top: 20px; }
-.d-actions .btn { flex: 1; padding-left: 8px; padding-right: 8px; }
+.d-actions .btn { flex: 1; padding-left: 8px; padding-right: 8px; white-space: nowrap; }
+.d-actions .btn.danger { flex: 0 0 56px; }
 .d-actions .btn.save { flex: 1.3; }
 
 /* login */
@@ -232,6 +233,26 @@ textarea.input { width: 100%; min-height: 70px; resize: vertical; }
 @media (hover: none) { .entry.checked .e-del { opacity: .8; } }
 .entry .e-meta { font-size: 12px; color: var(--ink-3); flex: none; }
 
+/* undo */
+.undo { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; width: min(440px, calc(100% - 24px));
+  display: flex; align-items: center; gap: 6px; background: var(--ink); color: var(--bg); border-radius: 14px; padding: 8px 6px 8px 14px; box-shadow: 0 8px 30px rgba(0,0,0,.25); overflow: hidden; }
+.undo span { flex: 1; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.undo button { border: 0; background: none; color: inherit; font-weight: 700; padding: 8px 10px; border-radius: 10px; }
+.undo .u-undo { color: var(--gold); }
+.undo button:hover { background: rgba(127,127,127,.2); }
+.undo i { position: absolute; left: 0; bottom: 0; height: 3px; width: 100%; background: var(--gold); transform-origin: left; }
+.undo.run i { animation: undoBar 10s linear forwards; }
+@keyframes undoBar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+html.sheet-open .undo { bottom: calc(92px + env(safe-area-inset-bottom)); }
+.undo:not(.hidden) ~ .toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
+/* search */
+.search-box { display: flex; gap: 8px; margin-bottom: 14px; }
+.search-box input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 12px 14px; outline: none; font-size: 16px; }
+.search-box input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.tile.done-t .ic { background: var(--surface-2); }
+.tile.done-t .n { color: var(--ink-3); }
+.mini.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
 .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 14px; z-index: 50; box-shadow: var(--shadow); max-width: calc(100% - 32px); }
 .toast.err { background: var(--warn); color: #fff; }
 html.sheet-open .toast { bottom: calc(92px + env(safe-area-inset-bottom)); }
@@ -240,6 +261,7 @@ html.sheet-open .toast { bottom: calc(92px + env(safe-area-inset-bottom)); }
 </head>
 <body>
 <div class="app" id="app"><div class="loading">Завантаження…</div></div>
+<div id="undo" class="undo hidden" role="status"><span id="undoText"></span><button class="u-undo" id="undoBtn">Скасувати</button><button id="undoClose" title="Закрити">✕</button><i></i></div>
 <div id="toast" class="toast hidden"></div>
 
 <script>
@@ -295,6 +317,7 @@ async function api(path, opts = {}) {
     method: opts.method ?? "GET",
     headers: { "content-type": "application/json", ...(state.token ? { authorization: "Bearer " + state.token } : {}) },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
+    keepalive: !!opts.keepalive,
   });
   const data = await r.json().catch(() => ({}));
   if (r.status === 401 && state.token) { logout(true); throw new Error(data.error || "Потрібен вхід"); }
@@ -345,7 +368,7 @@ async function logout(silent = false) {
 }
 
 // ---------- головний екран ----------
-const VIEWS = [["today", "Сьогодні"], ["my", "Мої задачі"], ["family", "Сімейні"], ["done", "Виконані"]];
+const VIEWS = [["today", "Сьогодні"], ["my", "Мої задачі"], ["family", "Сімейні"], ["done", "Готово"], ["search", "Пошук"]];
 const viewTitle = (v) => v === "settings" ? "Налаштування" : v === "list" ? (state.list?.title ?? state.topics.find((t) => t.id === state.listId)?.title ?? "Список") : (VIEWS.find(([k]) => k === v)?.[1] ?? "");
 
 function renderShell() {
@@ -355,7 +378,7 @@ function renderShell() {
       ${LOGO}
       <div><div class="brand">Togetherly</div><div class="today-label">${WDN[wd(t)]}, ${+t.slice(8, 10)} ${MON[+t.slice(5, 7) - 1]}</div></div>
       <div class="spacer"></div>
-      <div class="who"><span id="meName">${h(state.me.name)}</span> ${TG ? `<button class="ghost hidden" id="homeBtn">📲 На екран</button>` : ""}<button class="ghost" id="setBtn" title="Налаштування">⚙︎</button></div>
+      <div class="who"><span id="meName">${h(state.me.name)}</span> ${TG ? `<button class="ghost hidden" id="homeBtn">📲 На екран</button>` : ""}<button class="ghost" id="searchBtn" title="Пошук">🔍</button><button class="ghost" id="setBtn" title="Налаштування">⚙︎</button></div>
     </header>
     <div class="navbar hidden" id="navbar"><button class="back" id="backBtn">← Головна</button><h2 id="navTitle"></h2><button class="mini hidden" id="navSettings">⚙︎ Налаштування</button></div>
     <form class="quick" id="quick" autocomplete="off">
@@ -365,6 +388,7 @@ function renderShell() {
     <div class="hint" id="hint">Задача створюється особистою, без строку й нагадувань — вона з'явиться в «Мої задачі». Строк, опис та інше можна додати потім у деталях.</div>
     <div class="layout" id="layout"><main id="list"><div class="loading">Завантаження…</div></main><aside id="detailWrap"></aside></div>`;
   $("#setBtn").onclick = () => go("settings");
+  $("#searchBtn").onclick = () => go("search");
   if (TG) tgHomeButton();
   $("#backBtn").onclick = goHome;
   $("#navSettings").onclick = () => state.listId && openTopic(state.listId, null, true);
@@ -386,7 +410,7 @@ function renderTabs() {
   $("#navbar").classList.toggle("hidden", home);
   $("#navTitle").textContent = viewTitle(state.view);
   $("#navSettings").classList.toggle("hidden", !isList);
-  const noQuick = isList || state.view === "settings";
+  const noQuick = isList || ["settings", "search", "done"].includes(state.view);
   $("#quick").classList.toggle("hidden", noQuick);
   $("#hint").classList.toggle("hidden", noQuick);
   if (TG) tgSyncBack();
@@ -411,6 +435,7 @@ async function loadList() {
   if (view === "home") return loadHome();
   if (view === "list") return loadSimpleList();
   if (view === "settings") return renderSettings();
+  if (view === "search") return renderSearch();
   try {
     const d = await api("/tasks?view=" + view);
     if (view !== state.view) return;
@@ -421,6 +446,9 @@ async function loadList() {
 }
 
 function rowHtml(t, opts = {}) {
+  const pend = pending.get(t.id);
+  if (pend?.kind === "delete") return "";
+  if (pend?.kind === "done") t = { ...t, status: "done" };
   const late = t.status === "open" && t.due_date && t.due_date < state.today;
   const chips = [];
   if (opts.withDate !== false && t.due_date) chips.push(`<span class="chip ${late ? "late" : ""}">${fmtDate(t.due_date)}${t.due_time ? " · " + t.due_time : ""}</span>`);
@@ -442,6 +470,7 @@ function rowHtml(t, opts = {}) {
 }
 
 function section(title, items, opts = {}) {
+  items = items.filter((x) => pending.get(x.id)?.kind !== "delete");
   if (!items.length) return "";
   return `<div class="section"><h3 class="${opts.warn ? "warn" : ""}">${title} <span style="font-weight:500">${items.length}</span></h3><div class="list">${items.map((t) => rowHtml(t, opts)).join("")}</div></div>`;
 }
@@ -466,8 +495,15 @@ function renderList() {
     for (const m of state.members) html += section(h(m.name) + (m.id === state.me.id ? " (я)" : ""), items.filter((x) => x.assignee_id === m.id), { hideFam: true });
     if (!html) html = `<div class="empty"><div class="big">🏡</div>Сімейних задач немає.</div>`;
   } else {
-    html += section("Виконані за 7 днів", items, { done: true });
-    if (!html) html = `<div class="empty"><div class="big">📭</div>За тиждень ще нічого не виконано.</div>`;
+    const groups = new Map();
+    for (const x of items) {
+      const d = x.completed_at ? fmtTs(x.completed_at).split(" ").slice(0, -1).join(" ") : "раніше";
+      if (!groups.has(d)) groups.set(d, []);
+      groups.get(d).push(x);
+    }
+    for (const [d, arr] of groups) html += section(h(d[0].toUpperCase() + d.slice(1)), arr, { done: true });
+    if (!html) html = `<div class="empty"><div class="big">📭</div>Виконаних задач ще немає.</div>`;
+    else if (items.length >= 300) html += `<div class="hint" style="margin:0 4px">Показано 300 останніх. Старіші можна знайти через 🔍 пошук.</div>`;
   }
   $("#list").innerHTML = html;
   for (const [k] of VIEWS) { const c = document.querySelector(`[data-c="${k}"]`); if (c) c.textContent = state.counts[k] ?? ""; }
@@ -476,18 +512,19 @@ function renderList() {
 
 async function loadHome() {
   try {
-    const [today, my, family] = await Promise.all(["today", "my", "family"].map((v) => api("/tasks?view=" + v)));
+    const [today, my, family, done] = await Promise.all(["today", "my", "family", "done"].map((v) => api("/tasks?view=" + v)));
     await loadTopics();
     if (state.view !== "home") return;
     state.today = today.today;
-    state.home = { today, my, family };
+    state.home = { today, my, family, done };
     for (const [k, d] of Object.entries(state.home)) state.counts[k] = d.items.length;
     renderHome();
   } catch (e) { toast(e.message, true); }
 }
 
 function renderHome() {
-  const { today, my, family } = state.home, t = state.today;
+  const { today, my, family, done } = state.home, t = state.today;
+  const doneToday = done.items.filter((x) => x.completed_at && fmtTs(x.completed_at).startsWith("сьогодні")).length;
   const late = today.items.filter((x) => x.due_date < t).length;
   const famFree = family.items.filter((x) => !x.assignee_id).length;
   const tile = (cls, ic, lbl, n, sub, data, subWarn = false) => `<button class="tile ${cls}" ${data}><span class="ic">${ic}</span>${n !== null ? `<span class="n">${n}</span>` : ""}<span class="lbl">${h(lbl)}</span>${sub ? `<span class="sub ${subWarn ? "warn" : ""}">${sub}</span>` : ""}</button>`;
@@ -499,6 +536,7 @@ function renderHome() {
       ${tile("today", "☀️", "Сьогодні", today.items.length, late ? `${late} прострочено` : evN ? `${evN} ${plural(evN, "подія", "події", "подій")}` : today.items.length ? "на сьогодні" : "все зроблено 🌿", 'data-go="today"', !!late)}
       ${tile("my", "👤", "Мої задачі", my.items.length, "усі відкриті на мені", 'data-go="my"')}
       ${tile("fam", "👨‍👩‍👧", "Сімейні", family.items.length, famFree ? `${famFree} без відповідального` : "спільні задачі", 'data-go="family"')}
+      ${tile("done-t", "✅", "Готово", done.items.length >= 300 ? "300+" : done.items.length, doneToday ? `${doneToday} сьогодні` : "усі виконані", 'data-go="done"')}
     </div>
     <div class="home-h">Списки</div>
     <div class="tiles">
@@ -511,7 +549,7 @@ function renderHome() {
       ${topics.map((x) => tile("tpc", TOPIC_ICON[x.visibility], x.title, x.open_count || null, x.open_count ? `${x.open_count} ${plural(x.open_count, "відкрита", "відкриті", "відкритих")}` : "немає відкритих", `data-topic="${x.id}"`)).join("")}
       <button class="tile add" data-new="tasks">＋ Новий топік</button>
     </div>
-    <div class="home-foot"><button data-go="done">✓ Виконані за тиждень</button></div>`;
+    `;
   $("#list").onclick = (e) => {
     const g = e.target.closest("[data-go]"); if (g) return go(g.dataset.go);
     const l = e.target.closest("[data-list]"); if (l) return go("list", l.dataset.list);
@@ -549,6 +587,96 @@ function renderSettings() {
   });
   if ($("#logoutBtn")) $("#logoutBtn").onclick = () => logout();
 }
+
+// ---------- пошук ----------
+let searchTimer = null;
+function renderSearch() {
+  if (!$("#searchInput")) {
+    $("#list").innerHTML = `<form class="search-box" id="searchForm" autocomplete="off"><input id="searchInput" type="search" placeholder="Пошук по задачах, також виконаних…" enterkeyhint="search"></form><div id="searchRes"></div>`;
+    const inp = $("#searchInput");
+    inp.value = state.searchQ ?? "";
+    inp.oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 250); };
+    $("#searchForm").onsubmit = (e) => { e.preventDefault(); inp.blur(); runSearch(); };
+    $("#list").onclick = onListClick;
+    setTimeout(() => inp.focus(), 50);
+  }
+  runSearch();
+}
+async function runSearch() {
+  const q = ($("#searchInput")?.value ?? "").trim();
+  state.searchQ = q;
+  const box = $("#searchRes"); if (!box) return;
+  if (q.length < 2) { box.innerHTML = `<div class="empty" style="padding:28px 16px"><div class="big">🔍</div>Введи хоча б 2 літери — шукаю в назвах і описах, серед відкритих і виконаних задач.</div>`; return; }
+  try {
+    const r = await api("/search?q=" + encodeURIComponent(q));
+    if (state.view !== "search" || ($("#searchInput")?.value ?? "").trim() !== r.q) return;
+    state.searchItems = r.items;
+    renderSearchResults();
+  } catch (e) { toast(e.message, true); }
+}
+function renderSearchResults() {
+  const box = $("#searchRes"); if (!box || !state.searchItems) return;
+  const items = state.searchItems;
+  const open = items.filter((x) => x.status === "open"), done = items.filter((x) => x.status === "done");
+  box.innerHTML = section("Відкриті", open) + section("Виконані", done, { done: true })
+    || `<div class="empty" style="padding:28px 16px"><div class="big">🤷</div>Нічого не знайдено.</div>`;
+}
+
+// ---------- undo (10 секунд) ----------
+const pending = new Map();
+let undoShown = null;
+function rerender() {
+  if (state.view === "home" && state.home) renderHome();
+  else if (state.view === "search") renderSearchResults();
+  else if (state.data && ["today", "my", "family", "done"].includes(state.view)) renderList();
+  if (state.selTopic && state.topic?.items) renderTopicDetail();
+}
+function schedule(id, kind, text, commit) {
+  if (pending.has(id)) flushOne(id);
+  const p = { id, kind, text, commit };
+  p.timer = setTimeout(() => flushOne(id), 10000);
+  pending.set(id, p);
+  showUndo(p);
+  rerender();
+}
+function showUndo(p) {
+  undoShown = p;
+  const u = $("#undo");
+  $("#undoText").textContent = p.text;
+  u.classList.remove("hidden", "run"); void u.offsetWidth; u.classList.add("run");
+  $("#undoBtn").onclick = () => undoOne(p.id);
+  $("#undoClose").onclick = () => flushOne(p.id);
+}
+function hideUndo(p) { if (undoShown === p) { undoShown = null; $("#undo").classList.add("hidden"); } }
+async function flushOne(id, keepalive = false) {
+  const p = pending.get(id); if (!p) return;
+  clearTimeout(p.timer); pending.delete(id); hideUndo(p);
+  try { await p.commit(keepalive); } catch (e) { toast(e.message, true); }
+  if (!keepalive) { await loadList(); if (state.selTopic && state.topic?.items) openTopic(state.selTopic, null, true); }
+}
+function undoOne(id) {
+  const p = pending.get(id); if (!p) return;
+  clearTimeout(p.timer); pending.delete(id); hideUndo(p);
+  try { TG?.HapticFeedback?.notificationOccurred("warning"); } catch {}
+  rerender(); toast("Скасовано");
+}
+function flushAll() { for (const id of [...pending.keys()]) flushOne(id, true); }
+window.addEventListener("pagehide", flushAll);
+document.addEventListener("visibilitychange", () => { if (document.hidden) flushAll(); });
+
+function completeWithUndo(id, title) {
+  try { TG?.HapticFeedback?.notificationOccurred("success"); } catch {}
+  schedule(id, "done", `✓ Виконано: ${title ?? "задача"}`, async (keepalive) => {
+    const it = await api("/items/" + id, { method: "PATCH", body: { status: "done" }, keepalive });
+    if (it?.next_instance) toast(`Наступна: ${fmtDate(it.next_instance.due_date)}`);
+  });
+}
+function deleteWithUndo(id, title) {
+  if (state.sel === id) closeDetail();
+  schedule(id, "delete", `🗑 Видалено: ${title ?? "задача"}`, (keepalive) => api("/items/" + id, { method: "DELETE", keepalive }));
+}
+const titleOf = (id) => [state.data?.items, state.home?.today?.items, state.home?.my?.items, state.searchItems, state.topic?.items, [state.item]]
+  .flat().find((x) => x?.id === id)?.title;
 
 // ---------- простий список ----------
 async function loadSimpleList() {
@@ -737,7 +865,8 @@ function renderTopicDetail() {
   $("#detailWrap .list") && ($("#detailWrap").onclick = async (e) => {
     const row = e.target.closest(".row"); if (!row) return;
     const act = e.target.closest("[data-act]")?.dataset.act;
-    if (act === "done" || act === "open") { e.stopPropagation(); await patch(row.dataset.id, { status: act }, act === "done" ? "Виконано ✓" : "Повернуто"); openTopic(t.id); return; }
+    if (act === "done") { e.stopPropagation(); completeWithUndo(row.dataset.id, titleOf(row.dataset.id)); return; }
+    if (act === "open") { e.stopPropagation(); if (pending.get(row.dataset.id)?.kind === "done") return undoOne(row.dataset.id); await patch(row.dataset.id, { status: "open" }, "Повернуто"); openTopic(t.id); return; }
     if (act === "tomorrow") { e.stopPropagation(); await patch(row.dataset.id, { due_date: addDays(state.today, 1) }, "Перенесено на завтра"); openTopic(t.id); return; }
     openItem(row.dataset.id);
   });
@@ -754,10 +883,12 @@ async function onListClick(e) {
   const row = e.target.closest(".row"); if (!row) return;
   const id = row.dataset.id;
   const act = e.target.closest("[data-act]")?.dataset.act;
-  if (act === "done" || act === "open") {
+  if (act === "done") { e.stopPropagation(); completeWithUndo(id, titleOf(id)); return; }
+  if (act === "open") {
     e.stopPropagation();
-    if (act === "done") row.classList.add("done"), row.querySelector(".check").classList.add("done");
-    await patch(id, { status: act }, act === "done" ? "Виконано ✓" : "Повернуто у роботу");
+    if (pending.get(id)?.kind === "done") return undoOne(id);
+    await patch(id, { status: "open" }, "Повернуто у роботу");
+    if (state.view === "search") runSearch();
     return;
   }
   if (act === "tomorrow") { e.stopPropagation(); await patch(id, { due_date: addDays(state.today, 1) }, "Перенесено на завтра"); return; }
@@ -841,6 +972,7 @@ function renderDetail() {
           <button class="mini" data-date="${state.today}">Сьогодні</button>
           <button class="mini" data-date="${tomorrow}">Завтра</button>
           <button class="mini" data-date="${addDays(state.today, 7)}">+ тиждень</button>
+          <button class="mini ${it.due_date ? "" : "on"}" data-date="">Без строку</button>
         </div>
       </div>
 
@@ -941,12 +1073,19 @@ function renderDetail() {
   $("#dSave").onclick = async () => { await saveText(); closeDetail(); };
   $("#dClose").onclick = closeDetail;
   $("#scrim").onclick = closeDetail;
-  $("#dCheck").onclick = $("#dDone").onclick = () => patch(id, { status: done ? "open" : "done" }, done ? "Повернуто у роботу" : "Виконано ✓");
-  $("#dDelete").onclick = () => { if (confirm(`Видалити «${it.title}»?`)) patch(id, { status: "deleted" }, "Видалено"); };
+  $("#dCheck").onclick = $("#dDone").onclick = async () => {
+    if (done) return patch(id, { status: "open" }, "Повернуто у роботу");
+    await saveText(); closeDetail(); completeWithUndo(id, it.title);
+  };
+  $("#dDelete").onclick = () => { closeDetail(); deleteWithUndo(id, it.title); };
   $("#dDate").onchange = (e) => patch(id, { due_date: e.target.value || null }, "Строк змінено");
   $("#dTime").onchange = (e) => patch(id, { due_time: e.target.value || null }, "Час змінено");
   if ($("#dNoTime")) $("#dNoTime").onclick = () => patch(id, { due_time: null }, "Час прибрано");
-  document.querySelectorAll("[data-date]").forEach((b) => b.onclick = () => patch(id, { due_date: b.dataset.date }, "Строк змінено"));
+  document.querySelectorAll("[data-date]").forEach((b) => b.onclick = () => {
+    if (!b.dataset.date && it.recur_unit) return toast("У повторюваної задачі строк обов'язковий — спершу вимкни повторення", true);
+    if ((b.dataset.date || null) === (it.due_date || null)) return;
+    patch(id, { due_date: b.dataset.date || null }, b.dataset.date ? "Строк змінено" : "Строк прибрано");
+  });
   if ($("#dVis")) $("#dVis").onclick = (e) => { const b = e.target.closest("button"); if (b && b.dataset.v !== it.visibility) patch(id, { visibility: b.dataset.v }, b.dataset.v === "family" ? "Тепер сімейна" : "Тепер особиста"); };
   if ($("#dAssignee")) $("#dAssignee").onchange = (e) => patch(id, { assignee_id: e.target.value || null }, "Відповідального змінено");
   if ($("#dTopic")) $("#dTopic").onchange = (e) => patch(id, { topic_id: e.target.value || null }, "Топік змінено");
