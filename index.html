@@ -203,6 +203,13 @@ textarea.input { width: 100%; min-height: 70px; resize: vertical; }
 .home-foot button { border: 0; background: none; color: var(--ink-2); font-size: 14px; padding: 8px; }
 .home-foot button:hover { color: var(--accent); }
 
+/* settings */
+.member-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); }
+.member-row:first-child { border-top: 0; }
+.layout > main, .layout > aside { min-width: 0; }
+.member-row .input { flex: 1; min-width: 0; width: 100%; font-size: 15px; }
+.member-row .input:disabled { background: none; border-color: transparent; color: var(--ink); }
+
 /* simple list */
 .lst-add { display: flex; gap: 8px; margin-bottom: 8px; }
 .lst-add input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 12px 14px; outline: none; }
@@ -339,7 +346,7 @@ async function logout(silent = false) {
 
 // ---------- головний екран ----------
 const VIEWS = [["today", "Сьогодні"], ["my", "Мої задачі"], ["family", "Сімейні"], ["done", "Виконані"]];
-const viewTitle = (v) => v === "list" ? (state.list?.title ?? state.topics.find((t) => t.id === state.listId)?.title ?? "Список") : (VIEWS.find(([k]) => k === v)?.[1] ?? "");
+const viewTitle = (v) => v === "settings" ? "Налаштування" : v === "list" ? (state.list?.title ?? state.topics.find((t) => t.id === state.listId)?.title ?? "Список") : (VIEWS.find(([k]) => k === v)?.[1] ?? "");
 
 function renderShell() {
   const t = state.today;
@@ -348,7 +355,7 @@ function renderShell() {
       ${LOGO}
       <div><div class="brand">Togetherly</div><div class="today-label">${WDN[wd(t)]}, ${+t.slice(8, 10)} ${MON[+t.slice(5, 7) - 1]}</div></div>
       <div class="spacer"></div>
-      <div class="who">${h(state.me.name)} ${TG ? `<button class="ghost hidden" id="homeBtn">📲 На екран</button>` : `<button class="ghost" id="logoutBtn">Вийти</button>`}</div>
+      <div class="who"><span id="meName">${h(state.me.name)}</span> ${TG ? `<button class="ghost hidden" id="homeBtn">📲 На екран</button>` : ""}<button class="ghost" id="setBtn" title="Налаштування">⚙︎</button></div>
     </header>
     <div class="navbar hidden" id="navbar"><button class="back" id="backBtn">← Головна</button><h2 id="navTitle"></h2><button class="mini hidden" id="navSettings">⚙︎ Налаштування</button></div>
     <form class="quick" id="quick" autocomplete="off">
@@ -357,7 +364,7 @@ function renderShell() {
     </form>
     <div class="hint" id="hint">Задача створюється особистою, без строку й нагадувань — вона з'явиться в «Мої задачі». Строк, опис та інше можна додати потім у деталях.</div>
     <div class="layout" id="layout"><main id="list"><div class="loading">Завантаження…</div></main><aside id="detailWrap"></aside></div>`;
-  if ($("#logoutBtn")) $("#logoutBtn").onclick = () => logout();
+  $("#setBtn").onclick = () => go("settings");
   if (TG) tgHomeButton();
   $("#backBtn").onclick = goHome;
   $("#navSettings").onclick = () => state.listId && openTopic(state.listId, null, true);
@@ -379,8 +386,9 @@ function renderTabs() {
   $("#navbar").classList.toggle("hidden", home);
   $("#navTitle").textContent = viewTitle(state.view);
   $("#navSettings").classList.toggle("hidden", !isList);
-  $("#quick").classList.toggle("hidden", isList);
-  $("#hint").classList.toggle("hidden", isList);
+  const noQuick = isList || state.view === "settings";
+  $("#quick").classList.toggle("hidden", noQuick);
+  $("#hint").classList.toggle("hidden", noQuick);
   if (TG) tgSyncBack();
 }
 function go(view, listId) {
@@ -402,6 +410,7 @@ async function loadList() {
   const view = state.view;
   if (view === "home") return loadHome();
   if (view === "list") return loadSimpleList();
+  if (view === "settings") return renderSettings();
   try {
     const d = await api("/tasks?view=" + view);
     if (view !== state.view) return;
@@ -509,6 +518,36 @@ function renderHome() {
     const n = e.target.closest("[data-new]"); if (n) return createTopicPrompt(n.dataset.new);
     const c = e.target.closest("[data-topic]"); if (c) openTopic(c.dataset.topic);
   };
+}
+
+// ---------- налаштування ----------
+function renderSettings() {
+  const admin = state.me.role === "admin";
+  $("#list").innerHTML = `
+    <div class="section"><h3>Члени сім'ї</h3>
+      <div class="list">${state.members.map((m) => {
+        const can = admin || m.id === state.me.id;
+        return `<form class="member-row" data-mid="${m.id}" autocomplete="off">
+          <input class="input" name="name" value="${h(m.name)}" maxlength="40" ${can ? "" : "disabled"} aria-label="Ім'я">
+          <span class="chip">${m.role === "admin" ? "адмін" : "учасник"}${m.id === state.me.id ? " · я" : ""}</span>
+          ${can ? `<button class="mini" type="submit">Зберегти</button>` : ""}
+        </form>`;
+      }).join("")}</div>
+      <div style="font-size:12.5px;color:var(--ink-3);margin:8px 4px 0">${admin ? "Як адмін ти можеш змінювати імена всіх." : "Ти можеш змінити своє ім'я; імена інших змінює адмін."} Ім'я видно в задачах, у боті та в згадках: <code>@Вова</code>.</div>
+    </div>
+    ${TG ? "" : `<div class="section"><h3>Сесія</h3><button class="btn light" id="logoutBtn">Вийти з кабінету</button></div>`}`;
+  document.querySelectorAll(".member-row").forEach((f) => f.onsubmit = async (e) => {
+    e.preventDefault();
+    const name = f.elements.name.value.trim(), m = state.members.find((x) => x.id === f.dataset.mid);
+    if (!name || name === m.name) return;
+    try {
+      const r = await api("/members/" + m.id, { method: "PATCH", body: { name } });
+      state.members = r.members;
+      if (m.id === state.me.id) { state.me.name = name; $("#meName").textContent = name; }
+      toast(`Збережено: ${name}`); renderSettings();
+    } catch (err) { toast(err.message, true); }
+  });
+  if ($("#logoutBtn")) $("#logoutBtn").onclick = () => logout();
 }
 
 // ---------- простий список ----------
