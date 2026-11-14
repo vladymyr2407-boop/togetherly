@@ -204,6 +204,13 @@ textarea.input { width: 100%; min-height: 70px; resize: vertical; }
 .home-foot button { border: 0; background: none; color: var(--ink-2); font-size: 14px; padding: 8px; }
 .home-foot button:hover { color: var(--accent); }
 
+/* inline add */
+.add-row { display: flex; align-items: center; gap: 8px; padding: 5px 10px 5px 14px; border-top: 1px solid var(--line); }
+.add-row:first-child { border-top: 0; }
+.add-row input { flex: 1; min-width: 0; border: 0; background: none; outline: none; padding: 9px 0; font-size: 16px; }
+.add-row input::placeholder { color: var(--ink-3); }
+.add-row input:placeholder-shown + button { visibility: hidden; }
+
 /* settings */
 .member-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); }
 .member-row:first-child { border-top: 0; }
@@ -271,7 +278,7 @@ const LS = TG ? "togetherly_tg_token" : "togetherly_token";
 const WDN = ["нд", "пн", "вт", "ср", "чт", "пт", "сб"];
 const MON = ["січ", "лют", "бер", "кві", "тра", "чер", "лип", "сер", "вер", "жов", "лис", "гру"];
 
-const state = { listId: null, list: null, listShowAll: false, home: null, token: null, me: null, members: [], today: null, view: "home", data: null, sel: null, item: null, counts: {}, topics: [], selTopic: null, topic: null };
+const state = { myGroup: "date", listId: null, list: null, listShowAll: false, home: null, token: null, me: null, members: [], today: null, view: "home", data: null, sel: null, item: null, counts: {}, topics: [], selTopic: null, topic: null };
 const TOPIC_ICON = { personal: "🔒", family: "👨‍👩‍👧", custom: "👥" };
 const TOPIC_VIS = { personal: "особистий", family: "сімейний", custom: "для вибраних" };
 
@@ -410,7 +417,7 @@ function renderTabs() {
   $("#navbar").classList.toggle("hidden", home);
   $("#navTitle").textContent = viewTitle(state.view);
   $("#navSettings").classList.toggle("hidden", !isList);
-  const noQuick = isList || ["settings", "search", "done"].includes(state.view);
+  const noQuick = isList || ["settings", "search", "done", "today"].includes(state.view);
   $("#quick").classList.toggle("hidden", noQuick);
   $("#hint").classList.toggle("hidden", noQuick);
   if (TG) tgSyncBack();
@@ -471,8 +478,45 @@ function rowHtml(t, opts = {}) {
 
 function section(title, items, opts = {}) {
   items = items.filter((x) => pending.get(x.id)?.kind !== "delete");
-  if (!items.length) return "";
-  return `<div class="section"><h3 class="${opts.warn ? "warn" : ""}">${title} <span style="font-weight:500">${items.length}</span></h3><div class="list">${items.map((t) => rowHtml(t, opts)).join("")}</div></div>`;
+  const canAdd = opts.add !== undefined;
+  if (!items.length && !canAdd) return "";
+  const rows = items.map((t) => rowHtml(t, opts.todayMode ? { ...opts, withDate: t.due_date !== state.today } : opts)).join("");
+  const add = canAdd ? `<form class="add-row" data-add="${opts.add}" autocomplete="off"><input placeholder="＋ Нова задача${state.view === "today" ? " на сьогодні" : ""}" enterkeyhint="done" maxlength="300"><button class="mini" type="submit">Додати</button></form>` : "";
+  return `<div class="section"><h3 class="${opts.warn ? "warn" : ""}">${title} <span style="font-weight:500">${items.length || ""}</span></h3><div class="list">${rows}${add}</div></div>`;
+}
+
+// Групи за топіками: топіки за абеткою, «Без топіка» останнім; у кожній групі внизу рядок додавання
+function topicGroups(items, opts = {}) {
+  const groups = new Map();
+  for (const x of items) {
+    const k = x.topic_id || "";
+    if (!groups.has(k)) groups.set(k, { title: x.topic_title, items: [] });
+    groups.get(k).items.push(x);
+  }
+  if (opts.showEmpty) for (const tp of state.topics) if (tp.kind !== "list" && !groups.has(tp.id)) groups.set(tp.id, { title: tp.title, items: [] });
+  const keys = [...groups.keys()].filter(Boolean).sort((a, b) => groups.get(a).title.localeCompare(groups.get(b).title, "uk"));
+  let html = "";
+  for (const k of keys) html += section("📁 " + h(groups.get(k).title), groups.get(k).items, { hideTopic: true, add: k, todayMode: opts.todayMode });
+  html += section(keys.length ? "Без топіка" : "Задачі", groups.get("")?.items ?? [], { add: "", todayMode: opts.todayMode });
+  return html;
+}
+
+async function onAddRow(e) {
+  const f = e.target.closest(".add-row"); if (!f) return;
+  e.preventDefault();
+  const inp = f.querySelector("input"), title = inp.value.trim(); if (!title) return;
+  const topicId = f.dataset.add || null;
+  const vis = topicId && (state.topics.find((x) => x.id === topicId)?.visibility ?? state.data?.items.find((x) => x.topic_id === topicId)?.topic_visibility);
+  const body = { title, due_date: state.view === "today" ? state.today : null, topic_id: topicId, visibility: "personal" };
+  // у спільному топіку задача сімейна, але одразу на мені — щоб була в «Мої» і «Сьогодні»
+  if (topicId && vis !== "personal") { body.visibility = "family"; body.assignee_id = state.me.id; }
+  inp.disabled = true;
+  try {
+    await api("/items", { method: "POST", body });
+    try { TG?.HapticFeedback?.notificationOccurred("success"); } catch {}
+    state.focusAdd = f.dataset.add;
+    await loadList();
+  } catch (err) { toast(err.message, true); inp.disabled = false; }
 }
 
 function renderList() {
@@ -480,10 +524,13 @@ function renderList() {
   let html = "";
   if (state.view === "today") {
     if (d.events.length) html += `<div class="section"><h3>Події</h3><div class="list">${d.events.map((e) => `<div class="event"><span class="time">${e.start}–${e.end}</span><span>${h(e.title)}</span></div>`).join("")}</div></div>`;
-    html += section("Сьогодні", items.filter((x) => x.due_date === t), { withDate: false });
-    html += section("Прострочені", items.filter((x) => x.due_date < t), { warn: true });
-    if (!html) html = `<div class="empty"><div class="big">🌿</div>На сьогодні все. Можна відпочити.</div>`;
+    if (!items.length && !d.events.length) html += `<div class="empty" style="padding:24px 16px"><div class="big">🌿</div>На сьогодні все. Можна відпочити.</div>`;
+    html += topicGroups(items, { todayMode: true });
+  } else if (state.view === "my" && state.myGroup === "topic") {
+    html += MY_SEG();
+    html += topicGroups(items, { showEmpty: true });
   } else if (state.view === "my") {
+    html += MY_SEG();
     html += section("Прострочені", items.filter((x) => x.due_date && x.due_date < t), { warn: true });
     html += section("Сьогодні", items.filter((x) => x.due_date === t), { withDate: false });
     html += section("Завтра", items.filter((x) => x.due_date === addDays(t, 1)), { withDate: false });
@@ -508,7 +555,17 @@ function renderList() {
   $("#list").innerHTML = html;
   for (const [k] of VIEWS) { const c = document.querySelector(`[data-c="${k}"]`); if (c) c.textContent = state.counts[k] ?? ""; }
   $("#list").onclick = onListClick;
+  $("#list").onsubmit = onAddRow;
+  if ($("#myGroup")) $("#myGroup").onclick = (e) => {
+    const b = e.target.closest("button"); if (!b || b.dataset.g === state.myGroup) return;
+    state.myGroup = b.dataset.g; store("togetherly_my_group", state.myGroup); renderList();
+  };
+  if (state.focusAdd !== undefined) {
+    document.querySelector(`.add-row[data-add="${state.focusAdd}"] input`)?.focus();
+    delete state.focusAdd;
+  }
 }
+const MY_SEG = () => `<div class="seg" id="myGroup" style="margin-bottom:14px"><button data-g="date" class="${state.myGroup === "topic" ? "" : "on"}">За датами</button><button data-g="topic" class="${state.myGroup === "topic" ? "on" : ""}">За топіками</button></div>`;
 
 async function loadHome() {
   try {
@@ -1205,6 +1262,7 @@ if (TG) {
 // ---------- старт ----------
 async function boot() {
   state.token = state.token || load(LS);
+  state.myGroup = load("togetherly_my_group") === "topic" ? "topic" : "date";
   if (!state.token && TG) {
     try { state.token = (await api("/auth/telegram", { method: "POST", body: { initData: TG.initData } })).token; store(LS, state.token); }
     catch (e) { renderLogin(e.message); return; }
@@ -1218,8 +1276,8 @@ async function boot() {
 }
 
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") { if (state.sel || state.selTopic) closeDetail(); else if (state.view !== "home" && !e.target.closest("input,textarea")) goHome(); } });
-document.addEventListener("visibilitychange", () => { if (!document.hidden && state.me && !document.activeElement?.closest?.("#lstInput")) loadList(); });
-setInterval(() => { if (!document.hidden && state.me && document.activeElement?.id !== "lstInput") loadList(); }, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && state.me && !document.activeElement?.closest?.("#lstInput, .add-row")) loadList(); });
+setInterval(() => { if (!document.hidden && state.me && !document.activeElement?.closest?.("#lstInput, .add-row")) loadList(); }, 60000);
 boot();
 </script>
 </body>
