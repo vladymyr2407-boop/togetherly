@@ -688,6 +688,19 @@ async function loadSimpleList() {
   } catch (e) { toast(e.message, true); goHome(); }
 }
 
+// Розбиває текст на елементи списку. Перелік (кілька рядків або маркери •, -, –, —)
+// ділиться по рядках/маркерах, і коми всередині пункту зберігаються; один рядок без маркерів — по комах.
+function splitItems(text) {
+  const t = String(text ?? "").replace(/\r/g, "");
+  const BULLET = /[•·▪●◦‣∙]/;
+  const listy = /\n/.test(t) || BULLET.test(t) || /(^|\s)[-–—*](\s|$)/.test(t);
+  const parts = listy ? t.split(/\n|[•·▪●◦‣∙]|\s[-–—]\s/) : t.split(/[,;]/);
+  const seen = new Set();
+  return parts
+    .map((x) => x.replace(/^\s*(?:[-–—*+]+\s*|\d+[.)]\s+)/, "").replace(/\s+/g, " ").trim())
+    .filter((x) => x && !seen.has(x.toLowerCase()) && seen.add(x.toLowerCase()));
+}
+
 function entryHtml(e) {
   return `<div class="entry ${e.checked ? "checked" : ""}" data-entry="${e.id}">
     <span class="check ${e.checked ? "done" : ""}"><svg viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
@@ -704,7 +717,7 @@ function renderSimpleList(keepInput) {
   const shown = showAll ? checked : checked.slice(0, 25);
   $("#list").innerHTML = `
     <form class="lst-add" id="lstAdd" autocomplete="off">
-      <input id="lstInput" placeholder="Додати… (кілька — через кому)" enterkeyhint="done">
+      <input id="lstInput" placeholder="Додати… або вставити список" enterkeyhint="done">
       <button class="btn" type="submit">Додати</button>
     </form>
     <div class="sugg" id="sugg"></div>
@@ -726,12 +739,28 @@ function renderSimpleList(keepInput) {
   renderSugg();
   inp.oninput = renderSugg;
   if (keepInput) inp.focus();
+  const addTitles = async (titles) => {
+    if (!titles.length) return;
+    for (let k = 0; k < titles.length; k += 50) {
+      const part = titles.slice(k, k + 50), last = k + 50 >= titles.length;
+      await listCall(`/topics/${t.id}/entries`, "POST", { titles: part }, last && titles.length > 1 ? `Додано: ${titles.length}` : null, true);
+    }
+  };
   $("#lstAdd").onsubmit = async (ev) => {
     ev.preventDefault();
-    const titles = inp.value.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
-    if (!titles.length) return;
+    const titles = splitItems(inp.value);
     inp.value = "";
-    await listCall(`/topics/${t.id}/entries`, "POST", { titles }, titles.length > 1 ? `Додано: ${titles.length}` : null, true);
+    await addTitles(titles);
+  };
+  // вставлений перелік (рядки, «•», «-», «–», «—») одразу розкладається на окремі елементи
+  inp.onpaste = async (ev) => {
+    const text = ev.clipboardData?.getData("text") ?? "";
+    const titles = splitItems(text);
+    if (titles.length < 2) return;
+    ev.preventDefault();
+    const typed = inp.value.trim();
+    inp.value = "";
+    await addTitles(typed ? splitItems(typed).concat(titles) : titles);
   };
   if ($("#showAll")) $("#showAll").onclick = () => { state.listShowAll = true; renderSimpleList(); };
   $("#list").onclick = async (ev) => {
