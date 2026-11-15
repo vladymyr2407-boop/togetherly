@@ -572,8 +572,11 @@ function topicGroups(items, opts = {}) {
   if (opts.showEmpty) for (const tp of state.topics) if (tp.kind !== "list" && !groups.has(tp.id)) groups.set(tp.id, { title: tp.title, prio: tp.priority ?? 0, items: [] });
   const keys = [...groups.keys()].filter(Boolean).sort((a, b) => groups.get(a).prio - groups.get(b).prio || groups.get(a).title.localeCompare(groups.get(b).title, "uk"));
   let html = "";
+  // у «Сьогодні» задачі без топіка — першою групою
+  const rest = () => section(keys.length ? "Без топіка" : "Задачі", groups.get("")?.items ?? [], { add: "", todayMode: opts.todayMode });
+  if (opts.todayMode) html += rest();
   for (const k of keys) html += section(`<a class="grp-link" data-opentopic="${k}">📁 ${h(groups.get(k).title)}</a>`, groups.get(k).items, { hideTopic: true, add: k, todayMode: opts.todayMode });
-  html += section(keys.length ? "Без топіка" : "Задачі", groups.get("")?.items ?? [], { add: "", todayMode: opts.todayMode });
+  if (!opts.todayMode) html += rest();
   return html;
 }
 
