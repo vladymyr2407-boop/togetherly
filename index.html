@@ -240,6 +240,19 @@ textarea.input { width: 100%; min-height: 70px; resize: vertical; }
 @media (hover: none) { .entry.checked .e-del { opacity: .8; } }
 .entry .e-meta { font-size: 12px; color: var(--ink-3); flex: none; }
 
+/* пріоритети */
+.row.p1 { box-shadow: inset 4px 0 0 #e8833a; background: color-mix(in srgb, #e8833a 10%, var(--surface)); }
+.row.p2 { box-shadow: inset 4px 0 0 #3b7dd8; background: color-mix(in srgb, #3b7dd8 9%, var(--surface)); }
+.row.p3 { box-shadow: inset 4px 0 0 #3fa45b; background: color-mix(in srgb, #3fa45b 9%, var(--surface)); }
+.row.p1:hover, .row.p2:hover, .row.p3:hover { filter: brightness(.97); }
+.row.done.p1, .row.done.p2, .row.done.p3 { background: var(--surface); }
+.seg button.pr1.on { color: #c4621a; } .seg button.pr2.on { color: #2c66b8; } .seg button.pr3.on { color: #2f8a47; }
+.open-topic { width: 100%; margin-bottom: 14px; }
+.grp-link { color: inherit; cursor: pointer; text-decoration: none; }
+.grp-link:hover { color: var(--accent); }
+#dPrio { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; }
+#dPrio button { padding: 6px 2px; font-size: 13px; white-space: nowrap; }
+.grp-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
 /* undo */
 .undo { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; width: min(440px, calc(100% - 24px));
   display: flex; align-items: center; gap: 6px; background: var(--ink); color: var(--bg); border-radius: 14px; padding: 8px 6px 8px 14px; box-shadow: 0 8px 30px rgba(0,0,0,.25); overflow: hidden; }
@@ -251,6 +264,8 @@ textarea.input { width: 100%; min-height: 70px; resize: vertical; }
 .undo.run i { animation: undoBar 10s linear forwards; }
 @keyframes undoBar { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 html.sheet-open .undo { bottom: calc(92px + env(safe-area-inset-bottom)); }
+.undo.added .u-undo { color: var(--accent-soft); }
+html.sheet-open .undo.added { display: none; }
 .undo:not(.hidden) ~ .toast { bottom: calc(84px + env(safe-area-inset-bottom)); }
 /* search */
 .search-box { display: flex; gap: 8px; margin-bottom: 14px; }
@@ -269,6 +284,7 @@ html.sheet-open .toast { bottom: calc(92px + env(safe-area-inset-bottom)); }
 <body>
 <div class="app" id="app"><div class="loading">Завантаження…</div></div>
 <div id="undo" class="undo hidden" role="status"><span id="undoText"></span><button class="u-undo" id="undoBtn">Скасувати</button><button id="undoClose" title="Закрити">✕</button><i></i></div>
+<div id="added" class="undo added hidden" role="status"><span id="addedText"></span><button class="u-undo" id="addedOpen">Відкрити</button><button id="addedClose" title="Закрити">✕</button></div>
 <div id="toast" class="toast hidden"></div>
 
 <script>
@@ -278,7 +294,7 @@ const LS = TG ? "togetherly_tg_token" : "togetherly_token";
 const WDN = ["нд", "пн", "вт", "ср", "чт", "пт", "сб"];
 const MON = ["січ", "лют", "бер", "кві", "тра", "чер", "лип", "сер", "вер", "жов", "лис", "гру"];
 
-const state = { myGroup: "date", listId: null, list: null, listShowAll: false, home: null, token: null, me: null, members: [], today: null, view: "home", data: null, sel: null, item: null, counts: {}, topics: [], selTopic: null, topic: null };
+const state = { myGroup: "date", todayGroup: "topic", listId: null, list: null, listShowAll: false, home: null, token: null, me: null, members: [], today: null, view: "home", data: null, sel: null, item: null, counts: {}, topics: [], selTopic: null, topic: null };
 const TOPIC_ICON = { personal: "🔒", family: "👨‍👩‍👧", custom: "👥" };
 const TOPIC_VIS = { personal: "особистий", family: "сімейний", custom: "для вибраних" };
 
@@ -376,7 +392,7 @@ async function logout(silent = false) {
 
 // ---------- головний екран ----------
 const VIEWS = [["today", "Сьогодні"], ["my", "Мої задачі"], ["family", "Сімейні"], ["done", "Готово"], ["search", "Пошук"]];
-const viewTitle = (v) => v === "settings" ? "Налаштування" : v === "list" ? (state.list?.title ?? state.topics.find((t) => t.id === state.listId)?.title ?? "Список") : (VIEWS.find(([k]) => k === v)?.[1] ?? "");
+const viewTitle = (v) => v === "settings" ? "Налаштування" : v === "list" || v === "topic" ? (state.list?.title ?? state.topics.find((t) => t.id === state.listId)?.title ?? "Список") : (VIEWS.find(([k]) => k === v)?.[1] ?? "");
 
 function renderShell() {
   const t = state.today;
@@ -387,9 +403,9 @@ function renderShell() {
       <div class="spacer"></div>
       <div class="who"><span id="meName">${h(state.me.name)}</span> ${TG ? `<button class="ghost hidden" id="homeBtn">📲 На екран</button>` : ""}<button class="ghost" id="searchBtn" title="Пошук">🔍</button><button class="ghost" id="setBtn" title="Налаштування">⚙︎</button></div>
     </header>
-    <div class="navbar hidden" id="navbar"><button class="back" id="backBtn">← Головна</button><h2 id="navTitle"></h2><button class="mini hidden" id="navSettings">⚙︎ Налаштування</button></div>
+    <div class="navbar hidden" id="navbar"><button class="back" id="backBtn">← Головна</button><h2 id="navTitle"></h2><button class="mini hidden" id="navSettings" title="Налаштування">⚙︎</button></div>
     <form class="quick" id="quick" autocomplete="off">
-      <input id="quickInput" placeholder="Швидко додати задачу…" enterkeyhint="done">
+      <input id="quickInput" placeholder="Швидко додати задачу…" enterkeyhint="done" maxlength="300">
       <button class="btn" type="submit">Додати</button>
     </form>
     <div class="hint" id="hint">Задача створюється особистою, без строку й нагадувань — вона з'явиться в «Мої задачі». Строк, опис та інше можна додати потім у деталях.</div>
@@ -402,24 +418,59 @@ function renderShell() {
   $("#quick").onsubmit = async (e) => {
     e.preventDefault();
     const inp = $("#quickInput"); const text = inp.value.trim(); if (!text) return;
+    const ctx = quickCtx();
     inp.disabled = true;
     try {
-      await api("/items", { method: "POST", body: { title: text, due_date: null, visibility: "personal" } });
-      inp.value = ""; toast("Додано в «Мої задачі»");
+      const it = await api("/items", { method: "POST", body: { title: text, ...ctx.body } });
+      inp.value = "";
+      showAdded(it, ctx.where);
       try { TG?.HapticFeedback?.notificationOccurred("success"); } catch {}
       await loadList();
     } catch (e) { toast(e.message, true); }
     inp.disabled = false; inp.focus();
   };
 }
+
+// Головний рядок додавання залежить від того, де я зараз:
+// Сьогодні — особиста на сьогодні; Сімейні — сімейна; топік — у цей топік; інакше — особиста без строку.
+function topicBody(topicId) {
+  const tp = state.topics.find((x) => x.id === topicId) ?? state.list;
+  return tp && tp.visibility !== "personal" ? { topic_id: topicId, visibility: "family", assignee_id: state.me.id } : { topic_id: topicId, visibility: "personal" };
+}
+function quickCtx() {
+  const v = state.view;
+  if (v === "today") return { body: { due_date: state.today, visibility: "personal" }, where: "на сьогодні",
+    ph: "Нова задача на сьогодні…", hint: "Задача ставиться на сьогодні, особиста. Строк, пріоритет та інше — у деталях." };
+  if (v === "family") return { body: { due_date: null, visibility: "family" }, where: "у сімейні",
+    ph: "Нова сімейна задача…", hint: "Задача створюється сімейною, без строку й відповідального — призначити можна в деталях." };
+  if (v === "topic" && state.listId) {
+    const title = state.list?.title ?? state.topics.find((x) => x.id === state.listId)?.title ?? "топік";
+    return { body: { due_date: null, ...topicBody(state.listId) }, where: `у «${title}»`,
+      ph: `Нова задача в «${title}»…`, hint: "Задача додається в цей топік без строку. Строк, пріоритет та інше — у деталях." };
+  }
+  return { body: { due_date: null, visibility: "personal" }, where: "у «Мої задачі»",
+    ph: "Швидко додати задачу…", hint: "Задача створюється особистою, без строку й нагадувань — вона з'явиться в «Мої задачі». Строк, опис та інше можна додати потім у деталях." };
+}
+
+// Попап «Додано · Відкрити» після швидкого додавання
+let addedTimer;
+function showAdded(it, where) {
+  const a = $("#added");
+  $("#addedText").textContent = `✓ Додано ${where}: ${it.title}`;
+  a.classList.remove("hidden");
+  clearTimeout(addedTimer); addedTimer = setTimeout(() => a.classList.add("hidden"), 7000);
+  $("#addedOpen").onclick = () => { a.classList.add("hidden"); openItem(it.id, it); };
+  $("#addedClose").onclick = () => a.classList.add("hidden");
+}
 function renderTabs() {
   const home = state.view === "home", isList = state.view === "list";
   $("#navbar").classList.toggle("hidden", home);
   $("#navTitle").textContent = viewTitle(state.view);
-  $("#navSettings").classList.toggle("hidden", !isList);
-  const noQuick = isList || ["settings", "search", "done", "today"].includes(state.view);
+  $("#navSettings").classList.toggle("hidden", !(isList || state.view === "topic"));
+  const noQuick = isList || ["settings", "search", "done"].includes(state.view);
   $("#quick").classList.toggle("hidden", noQuick);
   $("#hint").classList.toggle("hidden", noQuick);
+  if (!noQuick) { const c = quickCtx(); $("#quickInput").placeholder = c.ph; $("#hint").textContent = c.hint; }
   if (TG) tgSyncBack();
 }
 function go(view, listId) {
@@ -443,6 +494,7 @@ async function loadList() {
   if (view === "list") return loadSimpleList();
   if (view === "settings") return renderSettings();
   if (view === "search") return renderSearch();
+  if (view === "topic") return loadTopicView();
   try {
     const d = await api("/tasks?view=" + view);
     if (view !== state.view) return;
@@ -451,6 +503,29 @@ async function loadList() {
     renderList();
   } catch (e) { toast(e.message, true); }
 }
+
+async function loadTopicView() {
+  const id = state.listId;
+  try {
+    const t = await api("/topics/" + id);
+    if (state.view !== "topic" || state.listId !== id) return;
+    if (t.kind === "list") return go("list", id);
+    state.list = t; state.data = { today: state.today, items: t.items, events: [] };
+    renderTabs(); renderList();
+  } catch (e) { toast(e.message, true); goHome(); }
+}
+
+// Порядок: прострочені високі, високі, прострочені середні, середні, прострочені без пріоритету, без пріоритету, низькі
+function prioRank(t) {
+  const late = !!t.due_date && t.due_date < state.today;
+  return t.priority === 1 ? (late ? 0 : 1) : t.priority === 2 ? (late ? 2 : 3) : t.priority === 3 ? 6 : (late ? 4 : 5);
+}
+function sortP(items) {
+  return items.map((x, i) => [x, i]).sort(([a, i], [b, j]) => prioRank(a) - prioRank(b)
+    || (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999") || (a.due_time ?? "99").localeCompare(b.due_time ?? "99") || i - j).map(([x]) => x);
+}
+const PRIO = { 1: "високий", 2: "середній", 3: "низький" };
+const topicPrio = (id, fallback) => state.topics.find((x) => x.id === id)?.priority ?? fallback ?? 0;
 
 function rowHtml(t, opts = {}) {
   const pend = pending.get(t.id);
@@ -469,7 +544,7 @@ function rowHtml(t, opts = {}) {
   if (t.reschedule_count) chips.push(`<span class="chip" title="Перенесень">↻ ${t.reschedule_count}</span>`);
   if (opts.done && t.completed_at) chips.push(`<span class="chip">виконано ${fmtTs(t.completed_at)}</span>`);
   const done = t.status === "done";
-  return `<div class="row ${done ? "done" : ""} ${state.sel === t.id ? "sel" : ""}" data-id="${t.id}">
+  return `<div class="row ${done ? "done" : ""} ${t.priority ? "p" + t.priority : ""} ${state.sel === t.id ? "sel" : ""}" data-id="${t.id}" ${t.priority ? `title="Пріоритет: ${PRIO[t.priority]}"` : ""}>
     <button class="check ${done ? "done" : ""}" data-act="${done ? "open" : "done"}" title="${done ? "Повернути" : "Виконано"}"><svg viewBox="0 0 16 16"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
     <div class="row-main"><div class="row-title">${h(t.title)}</div>${chips.length ? `<div class="meta">${chips.join("")}</div>` : ""}</div>
     ${done ? "" : `<button class="row-act" data-act="tomorrow" title="Перенести на завтра">→ завтра</button>`}
@@ -480,6 +555,7 @@ function section(title, items, opts = {}) {
   items = items.filter((x) => pending.get(x.id)?.kind !== "delete");
   const canAdd = opts.add !== undefined;
   if (!items.length && !canAdd) return "";
+  if (!opts.noSort) items = sortP(items);
   const rows = items.map((t) => rowHtml(t, opts.todayMode ? { ...opts, withDate: t.due_date !== state.today } : opts)).join("");
   const add = canAdd ? `<form class="add-row" data-add="${opts.add}" autocomplete="off"><input placeholder="＋ Нова задача${state.view === "today" ? " на сьогодні" : ""}" enterkeyhint="done" maxlength="300"><button class="mini" type="submit">Додати</button></form>` : "";
   return `<div class="section"><h3 class="${opts.warn ? "warn" : ""}">${title} <span style="font-weight:500">${items.length || ""}</span></h3><div class="list">${rows}${add}</div></div>`;
@@ -490,13 +566,13 @@ function topicGroups(items, opts = {}) {
   const groups = new Map();
   for (const x of items) {
     const k = x.topic_id || "";
-    if (!groups.has(k)) groups.set(k, { title: x.topic_title, items: [] });
+    if (!groups.has(k)) groups.set(k, { title: x.topic_title, prio: topicPrio(k, x.topic_priority), items: [] });
     groups.get(k).items.push(x);
   }
-  if (opts.showEmpty) for (const tp of state.topics) if (tp.kind !== "list" && !groups.has(tp.id)) groups.set(tp.id, { title: tp.title, items: [] });
-  const keys = [...groups.keys()].filter(Boolean).sort((a, b) => groups.get(a).title.localeCompare(groups.get(b).title, "uk"));
+  if (opts.showEmpty) for (const tp of state.topics) if (tp.kind !== "list" && !groups.has(tp.id)) groups.set(tp.id, { title: tp.title, prio: tp.priority ?? 0, items: [] });
+  const keys = [...groups.keys()].filter(Boolean).sort((a, b) => groups.get(a).prio - groups.get(b).prio || groups.get(a).title.localeCompare(groups.get(b).title, "uk"));
   let html = "";
-  for (const k of keys) html += section("📁 " + h(groups.get(k).title), groups.get(k).items, { hideTopic: true, add: k, todayMode: opts.todayMode });
+  for (const k of keys) html += section(`<a class="grp-link" data-opentopic="${k}">📁 ${h(groups.get(k).title)}</a>`, groups.get(k).items, { hideTopic: true, add: k, todayMode: opts.todayMode });
   html += section(keys.length ? "Без топіка" : "Задачі", groups.get("")?.items ?? [], { add: "", todayMode: opts.todayMode });
   return html;
 }
@@ -506,10 +582,8 @@ async function onAddRow(e) {
   e.preventDefault();
   const inp = f.querySelector("input"), title = inp.value.trim(); if (!title) return;
   const topicId = f.dataset.add || null;
-  const vis = topicId && (state.topics.find((x) => x.id === topicId)?.visibility ?? state.data?.items.find((x) => x.topic_id === topicId)?.topic_visibility);
-  const body = { title, due_date: state.view === "today" ? state.today : null, topic_id: topicId, visibility: "personal" };
   // у спільному топіку задача сімейна, але одразу на мені — щоб була в «Мої» і «Сьогодні»
-  if (topicId && vis !== "personal") { body.visibility = "family"; body.assignee_id = state.me.id; }
+  const body = { title, due_date: state.view === "today" ? state.today : null, ...(topicId ? topicBody(topicId) : { visibility: state.view === "family" ? "family" : "personal" }) };
   inp.disabled = true;
   try {
     await api("/items", { method: "POST", body });
@@ -523,9 +597,16 @@ function renderList() {
   const d = state.data, t = state.today, items = d.items;
   let html = "";
   if (state.view === "today") {
+    html += SEG("todayGroup", state.todayGroup, [["topic", "За топіками"], ["plain", "Одним списком"]]);
     if (d.events.length) html += `<div class="section"><h3>Події</h3><div class="list">${d.events.map((e) => `<div class="event"><span class="time">${e.start}–${e.end}</span><span>${h(e.title)}</span></div>`).join("")}</div></div>`;
     if (!items.length && !d.events.length) html += `<div class="empty" style="padding:24px 16px"><div class="big">🌿</div>На сьогодні все. Можна відпочити.</div>`;
-    html += topicGroups(items, { todayMode: true });
+    if (state.todayGroup === "plain") html += section("Задачі на сьогодні", items, { todayMode: true });
+    else html += topicGroups(items, { todayMode: true });
+  } else if (state.view === "topic") {
+    const t = state.list, open = items.filter((x) => x.status === "open"), done = items.filter((x) => x.status === "done");
+    if (t?.description) html += `<div class="hint" style="margin:0 2px 14px">${h(t.description)}</div>`;
+    html += section("Відкриті задачі", open, { hideTopic: true, add: t.id });
+    if (done.length) html += `<details class="section"><summary style="cursor:pointer;color:var(--ink-2);font-size:13.5px;margin-bottom:8px">Виконані (${done.length})</summary><div class="list">${done.map((x) => rowHtml(x, { hideTopic: true })).join("")}</div></details>`;
   } else if (state.view === "my" && state.myGroup === "topic") {
     html += MY_SEG();
     html += topicGroups(items, { showEmpty: true });
@@ -536,7 +617,7 @@ function renderList() {
     html += section("Завтра", items.filter((x) => x.due_date === addDays(t, 1)), { withDate: false });
     html += section("Далі", items.filter((x) => x.due_date && x.due_date > addDays(t, 1)));
     html += section("Без строку", items.filter((x) => !x.due_date));
-    if (!html) html = `<div class="empty"><div class="big">✨</div>Відкритих задач немає.</div>`;
+    if (!items.length) html = `<div class="empty"><div class="big">✨</div>Відкритих задач немає.</div>`;
   } else if (state.view === "family") {
     html += section("Без відповідального", items.filter((x) => !x.assignee_id), { hideFam: true });
     for (const m of state.members) html += section(h(m.name) + (m.id === state.me.id ? " (я)" : ""), items.filter((x) => x.assignee_id === m.id), { hideFam: true });
@@ -556,16 +637,17 @@ function renderList() {
   for (const [k] of VIEWS) { const c = document.querySelector(`[data-c="${k}"]`); if (c) c.textContent = state.counts[k] ?? ""; }
   $("#list").onclick = onListClick;
   $("#list").onsubmit = onAddRow;
-  if ($("#myGroup")) $("#myGroup").onclick = (e) => {
-    const b = e.target.closest("button"); if (!b || b.dataset.g === state.myGroup) return;
-    state.myGroup = b.dataset.g; store("togetherly_my_group", state.myGroup); renderList();
-  };
+  document.querySelectorAll("#list .seg[data-key]").forEach((seg) => seg.onclick = (e) => {
+    const b = e.target.closest("button"), key = seg.dataset.key; if (!b || b.dataset.g === state[key]) return;
+    state[key] = b.dataset.g; store(key === "myGroup" ? "togetherly_my_group" : "togetherly_today_group", b.dataset.g); renderList();
+  });
   if (state.focusAdd !== undefined) {
     document.querySelector(`.add-row[data-add="${state.focusAdd}"] input`)?.focus();
     delete state.focusAdd;
   }
 }
-const MY_SEG = () => `<div class="seg" id="myGroup" style="margin-bottom:14px"><button data-g="date" class="${state.myGroup === "topic" ? "" : "on"}">За датами</button><button data-g="topic" class="${state.myGroup === "topic" ? "on" : ""}">За топіками</button></div>`;
+const SEG = (key, cur, opts) => `<div class="grp-bar"><div class="seg" data-key="${key}">${opts.map(([v, l]) => `<button data-g="${v}" class="${cur === v ? "on" : ""}">${l}</button>`).join("")}</div></div>`;
+const MY_SEG = () => SEG("myGroup", state.myGroup === "topic" ? "topic" : "date", [["date", "За датами"], ["topic", "За топіками"]]);
 
 async function loadHome() {
   try {
@@ -685,7 +767,7 @@ let undoShown = null;
 function rerender() {
   if (state.view === "home" && state.home) renderHome();
   else if (state.view === "search") renderSearchResults();
-  else if (state.data && ["today", "my", "family", "done"].includes(state.view)) renderList();
+  else if (state.data && ["today", "my", "family", "done", "topic"].includes(state.view)) renderList();
   if (state.selTopic && state.topic?.items) renderTopicDetail();
 }
 function schedule(id, kind, text, commit) {
@@ -870,8 +952,8 @@ async function patchTopic(body, msg) {
     const t = await api("/topics/" + state.selTopic, { method: "PATCH", body });
     if (msg) toast(msg);
     await loadTopics(); refreshHome();
-    if (t.status === "archived") { closeDetail(); if (state.view === "list" && state.listId === t.id) goHome(); }
-    else { state.topic = t; renderTopicDetail(); if (state.view === "list" && state.listId === t.id) { state.list = t; renderTabs(); renderSimpleList(); } }
+    if (t.status === "archived") { closeDetail(); if (["list", "topic"].includes(state.view) && state.listId === t.id) goHome(); }
+    else { state.topic = t; renderTopicDetail(); if (state.view === "list" && state.listId === t.id) { state.list = t; renderTabs(); renderSimpleList(); } else if (state.view !== "home") loadList(); }
   } catch (e) { toast(e.message, true); }
 }
 
@@ -901,6 +983,7 @@ function renderTopicDetail() {
         <textarea class="d-title" id="tTitle" rows="1" ${canManage ? "" : "readonly"}>${h(t.title)}</textarea>
         <button class="close" id="dClose" title="Закрити">✕</button>
       </div>
+      ${!isList && !(state.view === "topic" && state.listId === t.id) ? `<button class="btn open-topic" id="tOpenFull">📂 Відкрити задачі топіка</button>` : ""}
       <div class="field"><label>Хто бачить</label>
         ${canManage ? `<div class="seg" id="tVis">
           <button data-v="personal" class="${t.visibility === "personal" ? "on" : ""}">🔒 Лише я</button>
@@ -911,6 +994,9 @@ function renderTopicDetail() {
           <div style="font-size:12.5px;color:var(--ink-3);margin-top:6px">${h(t.owner_name)} як власник бачить топік завжди.</div>` : ""}`
         : `<div style="font-size:14px">${TOPIC_ICON[t.visibility]} ${TOPIC_VIS[t.visibility]} · власник ${h(t.owner_name)}</div>`}
       </div>
+      ${!isList ? `<div class="field"><label>Пріоритет топіка</label>
+        <div class="inline"><input type="number" class="input" id="tPrio" min="0" max="999" step="1" style="width:90px" value="${t.priority ?? 0}" ${canManage ? "" : "readonly"}>
+        <span style="font-size:12.5px;color:var(--ink-3)">0 — найвище; у групуванні за топіками менше число показується вище</span></div></div>` : ""}
       <div class="field"><label>Опис</label>
         <textarea class="input" id="tDesc" placeholder="${isList ? "Для чого цей список…" : "Про що цей топік…"}" ${canManage ? "" : "readonly"}>${h(t.description ?? "")}</textarea>
       </div>
@@ -932,6 +1018,12 @@ function renderTopicDetail() {
   title.onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); title.blur(); } };
   if (canManage) title.onblur = () => { const v = title.value.trim(); if (v && v !== t.title) patchTopic({ title: v }, "Назву змінено"); else title.value = t.title; };
   $("#dClose").onclick = closeDetail; $("#scrim").onclick = closeDetail;
+  if ($("#tOpenFull")) $("#tOpenFull").onclick = () => go("topic", t.id);
+  if ($("#tPrio") && canManage) $("#tPrio").onchange = (e) => {
+    const v = parseInt(e.target.value, 10);
+    if (!(v >= 0 && v <= 999)) { e.target.value = t.priority ?? 0; return toast("Пріоритет — число від 0 до 999", true); }
+    if (v !== (t.priority ?? 0)) patchTopic({ priority: v }, "Пріоритет топіка змінено");
+  };
   if ($("#tVis")) $("#tVis").onclick = (e) => { const b = e.target.closest("button"); if (b && b.dataset.v !== t.visibility) patchTopic({ visibility: b.dataset.v }, "Видимість змінено"); };
   document.querySelectorAll("[data-mem]").forEach((cb) => cb.onchange = () => {
     const ids = [...document.querySelectorAll("[data-mem]:checked")].map((x) => x.dataset.mem);
@@ -945,7 +1037,7 @@ function renderTopicDetail() {
   $("#tAdd").onsubmit = async (e) => {
     e.preventDefault();
     const v = $("#tAddInput").value.trim(); if (!v) return;
-    try { await api("/items", { method: "POST", body: { title: v, topic_id: t.id, visibility: t.visibility === "personal" ? "personal" : "family", due_date: state.today } }); toast("Задачу додано"); openTopic(t.id); loadTopics().then(refreshHome); }
+    try { await api("/items", { method: "POST", body: { title: v, due_date: null, ...topicBody(t.id) } }); toast("Задачу додано"); openTopic(t.id); loadTopics().then(refreshHome); }
     catch (e) { toast(e.message, true); }
   };
   $("#detailWrap .list") && ($("#detailWrap").onclick = async (e) => {
@@ -966,6 +1058,7 @@ function renderTopicDetail() {
 }
 
 async function onListClick(e) {
+  const ot = e.target.closest("[data-opentopic]"); if (ot) return go("topic", ot.dataset.opentopic);
   const row = e.target.closest(".row"); if (!row) return;
   const id = row.dataset.id;
   const act = e.target.closest("[data-act]")?.dataset.act;
@@ -1059,6 +1152,15 @@ function renderDetail() {
           <button class="mini" data-date="${tomorrow}">Завтра</button>
           <button class="mini" data-date="${addDays(state.today, 7)}">+ тиждень</button>
           <button class="mini ${it.due_date ? "" : "on"}" data-date="">Без строку</button>
+        </div>
+      </div>
+
+      <div class="field"><label>Пріоритет</label>
+        <div class="seg" id="dPrio">
+          <button data-p="" class="${it.priority ? "" : "on"}">Немає</button>
+          <button data-p="1" class="pr1 ${it.priority === 1 ? "on" : ""}">🟠 Високий</button>
+          <button data-p="2" class="pr2 ${it.priority === 2 ? "on" : ""}">🔵 Середній</button>
+          <button data-p="3" class="pr3 ${it.priority === 3 ? "on" : ""}">🟢 Низький</button>
         </div>
       </div>
 
@@ -1172,6 +1274,11 @@ function renderDetail() {
     if ((b.dataset.date || null) === (it.due_date || null)) return;
     patch(id, { due_date: b.dataset.date || null }, b.dataset.date ? "Строк змінено" : "Строк прибрано");
   });
+  $("#dPrio").onclick = (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    const p = b.dataset.p ? +b.dataset.p : null; if (p === (it.priority ?? null)) return;
+    patch(id, { priority: p }, p ? `Пріоритет: ${PRIO[p]}` : "Пріоритет прибрано");
+  };
   if ($("#dVis")) $("#dVis").onclick = (e) => { const b = e.target.closest("button"); if (b && b.dataset.v !== it.visibility) patch(id, { visibility: b.dataset.v }, b.dataset.v === "family" ? "Тепер сімейна" : "Тепер особиста"); };
   if ($("#dAssignee")) $("#dAssignee").onchange = (e) => patch(id, { assignee_id: e.target.value || null }, "Відповідального змінено");
   if ($("#dTopic")) $("#dTopic").onchange = (e) => patch(id, { topic_id: e.target.value || null }, "Топік змінено");
@@ -1263,6 +1370,7 @@ if (TG) {
 async function boot() {
   state.token = state.token || load(LS);
   state.myGroup = load("togetherly_my_group") === "topic" ? "topic" : "date";
+  state.todayGroup = load("togetherly_today_group") === "plain" ? "plain" : "topic";
   if (!state.token && TG) {
     try { state.token = (await api("/auth/telegram", { method: "POST", body: { initData: TG.initData } })).token; store(LS, state.token); }
     catch (e) { renderLogin(e.message); return; }
