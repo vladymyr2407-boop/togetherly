@@ -716,8 +716,10 @@ function renderSettings() {
       <div style="font-size:12.5px;color:var(--ink-3);margin:8px 4px 0">${admin ? "Як адмін ти можеш змінювати імена всіх." : "Ти можеш змінити своє ім'я; імена інших змінює адмін."} Ім'я видно в задачах, у боті та в згадках: <code>@Вова</code>.</div>
     </div>
     <div class="section"><h3>Інтеграції · Google Sheets</h3><div id="intg"><div class="loading">Завантаження…</div></div></div>
+    <div class="section"><h3>Синхронізація файлом (без скрипта)</h3><div id="fsync"></div></div>
     ${TG ? "" : `<div class="section"><h3>Сесія</h3><button class="btn light" id="logoutBtn">Вийти з кабінету</button></div>`}`;
   loadTokens();
+  renderFileSync();
   document.querySelectorAll(".member-row").forEach((f) => f.onsubmit = async (e) => {
     e.preventDefault();
     const name = f.elements.name.value.trim(), m = state.members.find((x) => x.id === f.dataset.mid);
@@ -769,6 +771,103 @@ function renderTokens(tokens, fresh) {
     try { const r = await api("/tokens/" + b.dataset.revoke, { method: "DELETE" }); renderTokens(r.tokens); toast("Ключ відкликано"); }
     catch (err) { toast(err.message, true); }
   });
+}
+
+// ---------- синхронізація файлом (CSV робочої таблиці) ----------
+const CSV_HEAD = ["ID", "Задача", "Опис", "Строк", "Час", "Пріоритет", "Готово", "Змінено в Togetherly"];
+const PRIO_WORD = { 1: "Високий", 2: "Середній", 3: "Низький" };
+function parseCSV(text) {
+  text = text.replace(/^﻿/, "");
+  const sep = (text.split("\n")[0].match(/;/g)?.length ?? 0) > (text.split("\n")[0].match(/,/g)?.length ?? 0) ? ";" : ",";
+  const rows = []; let row = [], cur = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; continue; }
+    if (c === '"') q = true;
+    else if (c === sep) { row.push(cur); cur = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cur); rows.push(row); row = []; cur = ""; }
+    else cur += c;
+  }
+  if (cur !== "" || row.length) { row.push(cur); rows.push(row); }
+  return rows.filter((r) => r.some((x) => x.trim() !== ""));
+}
+function csvToTasks(text) {
+  const rows = parseCSV(text);
+  if (!rows.length) throw new Error("Файл порожній");
+  const head = rows[0].map((x) => x.trim().toLowerCase());
+  const col = (...names) => head.findIndex((x) => names.some((n) => x === n || x.startsWith(n)));
+  const c = { id: col("id"), title: col("задача", "назва", "title", "task"), desc: col("опис", "description"), due: col("строк", "дата", "due"),
+    time: col("час", "time"), prio: col("пріоритет", "priority"), done: col("готово", "статус", "done", "status"), upd: col("змінено", "updated") };
+  if (c.title < 0) throw new Error("Не знайшов колонку «Задача» у першому рядку файлу");
+  const g = (r, i) => (i >= 0 ? (r[i] ?? "").trim() : "");
+  return rows.slice(1).map((r) => ({ ext_id: g(r, c.id), title: g(r, c.title), description: g(r, c.desc), due_date: g(r, c.due),
+    due_time: g(r, c.time), priority: g(r, c.prio), status: g(r, c.done), updated: g(r, c.upd) })).filter((t) => t.title);
+}
+function tasksToCSV(rows) {
+  const q = (v) => { const s = String(v ?? ""); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  const upd = (r) => r.in_togetherly && r.updated_at ? fmtStamp(r.updated_at) : (r.updated ?? "");
+  const lines = [CSV_HEAD.join(",")].concat(rows.map((r) => [r.ext_id ?? "", r.title, r.description ?? "", r.due_date ?? "", r.due_time ?? "",
+    PRIO_WORD[r.priority] ?? (typeof r.priority === "string" ? r.priority : ""),
+    r.status === "done" || /^(true|так|done|1|✓|готово)$/i.test(String(r.status ?? "")) ? "TRUE" : "FALSE", upd(r)].map(q).join(",")));
+  return "﻿" + lines.join("\r\n") + "\r\n";
+}
+function fmtStamp(ts) {
+  const p = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(ts));
+  const v = (t) => p.find((x) => x.type === t).value;
+  return `${v("year")}-${v("month")}-${v("day")} ${v("hour")}:${v("minute")}`;
+}
+function downloadText(name, text) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }));
+  a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function renderFileSync() {
+  const box = $("#fsync"); if (!box) return;
+  const topics = state.topics.filter((t) => t.kind !== "list");
+  const def = topics.find((t) => /робот/i.test(t.title))?.id ?? topics[0]?.id;
+  box.innerHTML = `
+    <div style="font-size:13.5px;color:var(--ink-2);margin:0 4px 10px">Ручний обмін з робочою Google-таблицею через CSV. Задачі зіставляються за колонкою ID. Видалення не переносяться — видаляй задачу в обох місцях.</div>
+    <div class="list" style="padding:12px 14px">
+      <div class="inline" style="margin-bottom:10px"><select class="input" id="fsTopic" style="flex:1">${topics.map((t) => `<option value="${t.id}" ${t.id === def ? "selected" : ""}>📁 ${h(t.title)}</option>`).join("")}</select></div>
+      <div class="inline" style="margin-bottom:10px"><input type="file" id="fsFile" accept=".csv,text/csv" style="flex:1;min-width:0;font-size:13.5px"></div>
+      <div class="inline">
+        <button class="btn" id="fsPush" style="flex:1">⬆ Таблиця → Togetherly</button>
+        <button class="btn light" id="fsPull" style="flex:1">⬇ Togetherly → таблиця</button>
+      </div>
+      <div id="fsResult" style="font-size:13.5px;margin-top:10px"></div>
+    </div>
+    <details style="margin:8px 4px 0;font-size:13px;color:var(--ink-2)"><summary style="cursor:pointer">Як це зробити</summary>
+      <ol style="padding-left:18px;margin:8px 0">
+        <li>У таблиці: Файл → Завантажити → <b>CSV</b> (для аркуша «Задачі»).</li>
+        <li><b>⬆</b> — нові рядки стануть задачами, наявні задачі перезапишуться значеннями з файлу.<br><b>⬇</b> — у файлі оновляться рядки значеннями з Togetherly й додадуться нові задачі. Без файлу ⬇ просто вивантажить усі задачі топіка.</li>
+        <li>Після будь-якої дії завантажиться об'єднаний CSV. У таблиці: Файл → Імпорт → Завантажити → «<b>Замінити поточний аркуш</b>». Так нові задачі отримають ID і наступного разу не задублюються.</li>
+      </ol>
+      Колонки: ${CSV_HEAD.join(" · ")}. У Telegram завантаження файлів може не працювати — роби це в браузері на комп'ютері.</details>`;
+  const run = async (mode) => {
+    const f = $("#fsFile").files[0];
+    if (mode === "push" && !f) return toast("Вибери CSV-файл, вивантажений з таблиці", true);
+    let rows = [];
+    try { if (f) rows = csvToTasks(await f.text()); } catch (e) { return toast(e.message, true); }
+    const topicId = $("#fsTopic").value, topic = topics.find((t) => t.id === topicId);
+    if (mode === "push" && !confirm(`Записати ${rows.length} рядків з файлу в «${topic.title}»? Наявні задачі буде перезаписано значеннями з файлу.`)) return;
+    $("#fsPush").disabled = $("#fsPull").disabled = true;
+    $("#fsResult").textContent = "Обробляю…";
+    try {
+      const r = await api("/sync/file", { method: "POST", body: { topic_id: topicId, mode, rows } });
+      const st = r.stats;
+      downloadText(`togetherly-${topic.title.replace(/[^\p{L}\p{N}]+/gu, "-")}-${state.today}.csv`, tasksToCSV(r.rows));
+      $("#fsResult").innerHTML = (mode === "push"
+        ? `✅ У Togetherly: нових ${st.created}, оновлено ${st.updated}${st.skipped ? `, пропущено ${st.skipped} (видалені в Togetherly)` : ""}.`
+        : `✅ Вивантажено з Togetherly.`)
+        + ` У файлі ${st.total} рядків, з них ${st.added_to_file} нових із Togetherly.<br>Файл завантажено — імпортуй його в таблицю з опцією «Замінити поточний аркуш».`
+        + (r.errors.length ? `<div style="color:var(--warn);margin-top:6px">Помилки (${r.errors.length}): ${r.errors.slice(0, 5).map((e) => h(`${e.title ?? e.ext_id}: ${e.error}`)).join("; ")}</div>` : "");
+      if (mode === "push") { loadTopics(); }
+    } catch (e) { $("#fsResult").textContent = ""; toast(e.message, true); }
+    $("#fsPush").disabled = $("#fsPull").disabled = false;
+  };
+  $("#fsPush").onclick = () => run("push");
+  $("#fsPull").onclick = () => run("pull");
 }
 
 // ---------- пошук ----------
