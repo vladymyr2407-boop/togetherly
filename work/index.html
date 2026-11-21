@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Togetherly · Робота</title>
+<style>
+:root{--bg:#f4f1ea;--card:#fffdf8;--ink:#1f2622;--ink-2:#5d665f;--line:#e4ded2;--acc:#2f6b57;--acc-2:#e3eee8;--warn:#b5522f;--p1:#e07b24;--p2:#3a78c2;--p3:#4f9a5a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:760px;margin:0 auto;padding:16px 16px 80px}
+header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+h1{font-size:20px;margin:0;flex:1;white-space:nowrap}
+h1 small{color:var(--ink-2);font-weight:500;font-size:14px}
+.btn{border:0;border-radius:10px;padding:9px 14px;font:inherit;font-weight:600;cursor:pointer;background:var(--acc);color:#fff}
+.btn.light{background:#ebe6db;color:var(--ink)}
+.btn.small{padding:6px 10px;font-size:13.5px}
+.btn:disabled{opacity:.5;cursor:default}
+.chip{display:inline-flex;align-items:center;gap:6px;background:#ebe6db;border-radius:999px;padding:5px 11px;font-size:13px;color:var(--ink-2);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip.ok{background:var(--acc-2);color:var(--acc)}
+.chip.bad{background:#f6e2d8;color:var(--warn)}
+.banner{background:#fff4e0;border:1px solid #f0d9a8;border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:14px}
+.add{display:flex;gap:8px;margin-bottom:12px}
+.input{width:100%;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:10px 12px;font:inherit;color:inherit}
+textarea.input{min-height:90px;resize:vertical}
+.tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.tab{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px 12px;font:inherit;font-size:13.5px;cursor:pointer;color:var(--ink-2)}
+.tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.grp{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2);margin:16px 4px 6px;font-weight:700}
+.grp.over{color:var(--warn)}
+.list{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.row{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-top:1px solid var(--line);cursor:pointer;border-left:4px solid transparent}
+.row:first-child{border-top:0}
+.row:hover{background:#faf7f0}
+.row.p1{border-left-color:var(--p1)}.row.p2{border-left-color:var(--p2)}.row.p3{border-left-color:var(--p3)}
+.row.done .t{text-decoration:line-through;color:var(--ink-2)}
+.cb{width:20px;height:20px;border:2px solid #b9b2a4;border-radius:6px;flex:none;margin-top:1px;display:grid;place-items:center;cursor:pointer;background:#fff}
+.row.done .cb{background:var(--acc);border-color:var(--acc);color:#fff}
+.t{font-weight:500;word-break:break-word}
+.meta{font-size:12.5px;color:var(--ink-2);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap}
+.meta .over{color:var(--warn);font-weight:600}
+.dot{width:8px;height:8px;border-radius:50%;background:#d9a441;flex:none;margin-top:7px;margin-left:auto}
+.empty{color:var(--ink-2);text-align:center;padding:30px 10px}
+dialog{border:0;border-radius:16px;padding:0;width:min(520px,94vw);background:var(--card);color:var(--ink);box-shadow:0 20px 60px rgba(0,0,0,.25)}
+dialog::backdrop{background:rgba(20,25,22,.4)}
+.dlg{padding:18px}
+.dlg h2{margin:0 0 12px;font-size:18px}
+.fld{margin-bottom:10px}
+.fld label{display:block;font-size:12.5px;color:var(--ink-2);margin-bottom:4px;font-weight:600}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.seg button{border:1px solid var(--line);background:#fff;border-radius:9px;padding:8px 4px;font:inherit;font-size:13.5px;cursor:pointer}
+.seg button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+.acts{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.acts .left{margin-right:auto}
+.danger{background:#f6e2d8;color:var(--warn)}
+.note{font-size:13px;color:var(--ink-2)}
+#toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;max-width:92vw;z-index:9}
+#toast.on{opacity:1}#toast.err{background:var(--warn)}
+#syncRes{margin-bottom:12px}
+code{background:#ebe6db;border-radius:5px;padding:1px 5px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Togetherly <small>· робочий</small></h1>
+    <span class="chip" id="fileChip">Файл не відкрито</span>
+    <button class="btn" id="syncBtn" title="Відправити локальні зміни й отримати оновлення">⇅ Синхронізувати</button>
+    <button class="btn light" id="setBtn" title="Налаштування">⚙︎</button>
+  </header>
+  <div id="banner"></div>
+  <div id="syncRes"></div>
+  <form class="add" id="addForm" autocomplete="off">
+    <input class="input" id="addInp" placeholder="Нова задача… (напр.: Звіт по Q4 пт о 10:00 !1)">
+    <button class="btn">Додати</button>
+  </form>
+  <div class="tabs" id="tabs"></div>
+  <div id="list"></div>
+</div>
+
+<dialog id="dEdit"><form class="dlg" method="dialog" id="fEdit">
+  <h2 id="eHead">Задача</h2>
+  <div class="fld"><label>Назва</label><input class="input" id="eTitle" required></div>
+  <div class="fld"><label>Опис</label><textarea class="input" id="eDesc"></textarea></div>
+  <div class="two">
+    <div class="fld"><label>Строк</label><input class="input" type="date" id="eDue"></div>
+    <div class="fld"><label>Час</label><input class="input" type="time" id="eTime"></div>
+  </div>
+  <div class="fld"><label>Пріоритет</label><div class="seg" id="ePrio"></div></div>
+  <div class="fld"><label><input type="checkbox" id="eDone"> Виконано</label></div>
+  <div class="note" id="eInfo"></div>
+  <div class="acts">
+    <button type="button" class="btn small danger left" id="eDel">Видалити</button>
+    <button type="button" class="btn light" id="eCancel">Скасувати</button>
+    <button class="btn" id="eSave">Зберегти</button>
+  </div>
+</form></dialog>
+
+<dialog id="dSet"><div class="dlg">
+  <h2>Налаштування</h2>
+  <div class="fld"><label>Файл задач (CSV)</label>
+    <div class="acts" style="justify-content:flex-start;margin-top:0">
+      <button class="btn small" id="sOpen">📂 Відкрити файл</button>
+      <button class="btn small light" id="sNew">＋ Новий файл</button>
+      <button class="btn small light" id="sExport">⬇ Зберегти копію</button>
+    </div>
+    <div class="note" id="sFileNote" style="margin-top:6px"></div>
+  </div>
+  <div class="fld"><label>API-ключ Togetherly</label><input class="input" id="sKey" placeholder="tgly_…"></div>
+  <div class="note" style="margin-bottom:10px">Ключ створюється в загальному Togetherly: ⚙︎ → «Інтеграції · Google Sheets» → вибери топік (напр. «Робота Вова») → «Створити ключ». Задачі синхронізуються з цим топіком.</div>
+  <details class="fld"><summary class="note" style="cursor:pointer">Адреса API</summary><input class="input" id="sUrl" style="margin-top:6px"></details>
+  <div class="fld"><label>Інше</label>
+    <div class="acts" style="justify-content:flex-start;margin-top:0">
+      <button class="btn small light" id="sPull">⬇ Перезаписати все з Togetherly</button>
+    </div>
+    <div class="note" style="margin-top:6px">Звичайна синхронізація: твої локальні зміни перемагають. Ця кнопка навпаки: значення з Togetherly перезапишуть усі задачі з тим самим ID, навіть змінені тут.</div>
+  </div>
+  <div class="acts"><button class="btn" id="sSave">Готово</button></div>
+</div></dialog>
+<div id="toast"></div>
+
+<script>
+// ===================== Togetherly · робочий клієнт =====================
+// Дані живуть у локальному CSV-файлі (той самий формат, що й робоча Google-таблиця).
+// Колонка «Синхр» — відбиток рядка на момент останньої синхронізації: якщо рядок змінено (тут, агентом
+// чи вручну у файлі), відбиток не збігається і задача буде відправлена в Togetherly.
+const DEF_URL = "https://fciaawuxdyeqhnbqhljs.supabase.co/functions/v1/togetherly-api";
+const HEAD = ["ID", "Задача", "Опис", "Строк", "Час", "Пріоритет", "Готово", "Змінено в Togetherly", "Синхр"];
+const PRIO_WORD = { 1: "Високий", 2: "Середній", 3: "Низький" };
+const PRIO_SHORT = { 1: "високий", 2: "середній", 3: "низький" };
+const FS = "showOpenFilePicker" in window;
+const $ = (s) => document.querySelector(s);
+const h = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const LS = { get: (k, d) => { try { return JSON.parse(localStorage.getItem("tw_" + k)) ?? d; } catch { return d; } },
+  set: (k, v) => { try { localStorage.setItem("tw_" + k, JSON.stringify(v)); } catch {} } };
+
+let rows = LS.get("rows", []);          // [{id,title,desc,due,time,prio,done,upd,sync}]
+let handle = null, fileName = LS.get("fileName", ""), lastMod = 0, writing = null, needPerm = false;
+let tab = LS.get("tab", "active");
+
+// ---------- утиліти ----------
+function toast(msg, err) { const t = $("#toast"); t.textContent = msg; t.className = "on" + (err ? " err" : ""); clearTimeout(toast.t); toast.t = setTimeout(() => (t.className = ""), 3200); }
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => ((Math.random() * 16) | 0).toString(16)));
+function todayISO() { return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
+function addDays(iso, n) { const d = new Date(iso + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
+const wday = (iso) => new Date(iso + "T12:00:00Z").getUTCDay();
+const WDN = ["нд", "пн", "вт", "ср", "чт", "пт", "сб"];
+function fmtDate(iso) { if (!iso) return ""; const t = todayISO(); if (iso === t) return "сьогодні"; if (iso === addDays(t, 1)) return "завтра"; if (iso === addDays(t, -1)) return "вчора"; return `${WDN[wday(iso)]} ${iso.slice(8, 10)}.${iso.slice(5, 7)}${iso.slice(0, 4) !== t.slice(0, 4) ? "." + iso.slice(0, 4) : ""}`; }
+function fmtStamp(ts) {
+  const p = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(ts));
+  const v = (t) => p.find((x) => x.type === t).value; return `${v("year")}-${v("month")}-${v("day")} ${v("hour")}:${v("minute")}`;
+}
+function normDate(s) { s = String(s ?? "").trim(); let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = s.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})$/); return m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : ""; }
+function normTime(s) { const m = String(s ?? "").trim().match(/^(\d{1,2}):(\d{2})/); return m && +m[1] < 24 && +m[2] < 60 ? `${m[1].padStart(2, "0")}:${m[2]}` : ""; }
+function normPrio(v) { const s = String(v ?? "").trim().toLowerCase(); if (["1", "високий", "high", "h"].includes(s)) return 1; if (["2", "середній", "medium", "m"].includes(s)) return 2; if (["3", "низький", "low", "l"].includes(s)) return 3; return null; }
+const normDone = (v) => v === true || /^(true|так|done|1|✓|готово|виконано|x)$/i.test(String(v ?? "").trim());
+function fp(r) { // відбиток вмісту задачі (FNV-1a)
+  const s = [r.title, r.desc, r.due, r.time, r.prio ?? "", r.done ? 1 : 0].join("␟");
+  let x = 0x811c9dc5; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 0x01000193); } return (x >>> 0).toString(36);
+}
+const changed = (r) => fp(r) !== r.sync;
+
+// ---------- CSV ----------
+function parseCSV(text) {
+  text = text.replace(/^﻿/, "");
+  const first = text.split("\n")[0];
+  const sep = (first.match(/;/g)?.length ?? 0) > (first.match(/,/g)?.length ?? 0) ? ";" : ",";
+  const out = []; let row = [], cur = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; continue; }
+    if (c === '"') q = true; else if (c === sep) { row.push(cur); cur = ""; }
+    else if (c === "\n" || c === "\r") { if (c === "\r" && text[i + 1] === "\n") i++; row.push(cur); out.push(row); row = []; cur = ""; }
+    else cur += c;
+  }
+  if (cur !== "" || row.length) { row.push(cur); out.push(row); }
+  return out.filter((r) => r.some((x) => x.trim() !== ""));
+}
+function csvToRows(text) {
+  const a = parseCSV(text);
+  if (!a.length) return [];
+  const head = a[0].map((x) => x.trim().toLowerCase());
+  const col = (...n) => head.findIndex((x) => n.some((k) => x === k || x.startsWith(k)));
+  const c = { id: col("id"), title: col("задача", "назва", "title", "task"), desc: col("опис", "description"), due: col("строк", "дата", "due"), time: col("час", "time"),
+    prio: col("пріоритет", "priority"), done: col("готово", "статус", "done", "status"), upd: col("змінено", "updated"), sync: col("синхр", "_sync") };
+  if (c.title < 0) throw new Error("У першому рядку файлу немає колонки «Задача»");
+  const g = (r, i) => (i >= 0 ? (r[i] ?? "").trim() : "");
+  return a.slice(1).map((r) => { const due = normDate(g(r, c.due));
+    return { id: g(r, c.id) || "", title: g(r, c.title), desc: g(r, c.desc), due, time: due ? normTime(g(r, c.time)) : "", prio: normPrio(g(r, c.prio)),
+      done: normDone(g(r, c.done)), upd: g(r, c.upd), sync: g(r, c.sync) }; }).filter((r) => r.title);
+}
+function rowsToCSV(list) {
+  const q = (v) => { const s = String(v ?? ""); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  return "﻿" + [HEAD.join(",")].concat(list.map((r) => [r.id, r.title, r.desc, r.due, r.time, PRIO_WORD[r.prio] ?? "", r.done ? "TRUE" : "FALSE", r.upd, r.sync].map(q).join(","))).join("\r\n") + "\r\n";
+}
+
+// ---------- файл ----------
+function idb(mode, fn) {
+  return new Promise((res, rej) => { const o = indexedDB.open("togetherly-work", 1);
+    o.onupgradeneeded = () => o.result.createObjectStore("kv");
+    o.onsuccess = () => { const tx = o.result.transaction("kv", mode); const r = fn(tx.objectStore("kv")); tx.oncomplete = () => res(r?.result); tx.onerror = () => rej(tx.error); };
+    o.onerror = () => rej(o.error); });
+}
+async function loadFromHandle() {
+  const f = await handle.getFile(); lastMod = f.lastModified; fileName = f.name; LS.set("fileName", fileName);
+  const text = await f.text();
+  const list = text.trim() ? csvToRows(text) : [];
+  let fix = false;
+  for (const r of list) if (!r.id) { r.id = uid(); fix = true; }   // рядки, додані у файл вручну чи агентом, отримують ID
+  rows = list; LS.set("rows", rows); render();
+  if (fix) await save();
+}
+async function openFile() {
+  if (!FS) return importFallback();
+  try { [handle] = await showOpenFilePicker({ types: [{ description: "CSV", accept: { "text/csv": [".csv"] } }] }); }
+  catch { return; }
+  await idb("readwrite", (s) => s.put(handle, "h")); needPerm = false;
+  try { await loadFromHandle(); toast(`Відкрито ${fileName}: ${rows.length} задач`); } catch (e) { toast(e.message, true); }
+}
+async function newFile() {
+  if (!FS) { rows = []; LS.set("rows", rows); render(); return toast("Створено порожній список у браузері"); }
+  try { handle = await showSaveFilePicker({ suggestedName: "togetherly-work.csv", types: [{ description: "CSV", accept: { "text/csv": [".csv"] } }] }); }
+  catch { return; }
+  await idb("readwrite", (s) => s.put(handle, "h")); needPerm = false;
+  const keep = rows.length && confirm(`Перенести поточні ${rows.length} задач у новий файл?`);
+  if (!keep) rows = [];
+  fileName = handle.name; LS.set("fileName", fileName); await save(); render(); toast("Файл створено");
+}
+let saveT = null;
+function save() {
+  LS.set("rows", rows);
+  if (!handle || needPerm) { renderChip(); return Promise.resolve(); }
+  clearTimeout(saveT);
+  return new Promise((res) => { saveT = setTimeout(async () => {
+    try { writing = (async () => { const w = await handle.createWritable(); await w.write(rowsToCSV(rows)); await w.close(); lastMod = (await handle.getFile()).lastModified; })(); await writing; }
+    catch (e) { toast("Не вдалось записати файл: " + e.message, true); }
+    writing = null; saveT = null; renderChip(); res();
+  }, 250); });
+}
+function exportCopy() {
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([rowsToCSV(rows)], { type: "text/csv;charset=utf-8" }));
+  a.download = `togetherly-work-${todayISO()}.csv`; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+function importFallback() {
+  const i = document.createElement("input"); i.type = "file"; i.accept = ".csv,text/csv";
+  i.onchange = async () => { try { const list = csvToRows(await i.files[0].text()); for (const r of list) if (!r.id) r.id = uid();
+    rows = list; LS.set("rows", rows); render(); toast(`Завантажено ${rows.length} задач`); } catch (e) { toast(e.message, true); } };
+  i.click();
+}
+// файл могли змінити ззовні (Claude Desktop, вручну) — перечитуємо, коли вікно знову в фокусі
+async function checkExternal() {
+  if (!handle || needPerm || writing || saveT) return;
+  try { const f = await handle.getFile(); if (f.lastModified > lastMod) { await loadFromHandle(); toast("Файл змінено ззовні — перечитано"); } } catch {}
+}
+window.addEventListener("focus", checkExternal);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) checkExternal(); });
+
+// ---------- швидкий ввід ----------
+const WD = [[/^(понеділок|понеділка|пн)$/i, 1], [/^(вівторок|вівторка|вт)$/i, 2], [/^(середа|середу|ср)$/i, 3], [/^(четвер|чт)$/i, 4], [/^(п[ʼ'’]?ятниця|п[ʼ'’]?ятницю|пт)$/i, 5], [/^(субота|суботу|сб)$/i, 6], [/^(неділя|неділю|нд)$/i, 0]];
+const wdOf = (s) => { for (const [re, n] of WD) if (re.test(s)) return n; return -1; };
+function parseQuick(text) {
+  const today = todayISO(); let date = "", time = "", prio = null; const keep = []; const tok = text.trim().split(/\s+/);
+  const asTime = (s) => { const m = s.match(/^(\d{1,2})(?::(\d{2}))?$/); if (!m) return ""; const H = +m[1], M = m[2] ? +m[2] : 0; return H < 24 && M < 60 ? `${String(H).padStart(2, "0")}:${String(M).padStart(2, "0")}` : ""; };
+  for (let i = 0; i < tok.length; i++) {
+    const raw = tok[i], low = raw.toLowerCase().replace(/[,.!?]$/, "");
+    if (/^!(1|2|3)$/.test(raw)) { prio = +raw[1]; continue; }
+    if (!date && (low === "сьогодні" || low === "сьогодня")) { date = today; continue; }
+    if (!date && low === "завтра") { date = addDays(today, 1); continue; }
+    if (!date && low === "післязавтра") { date = addDays(today, 2); continue; }
+    let w = wdOf(low);
+    if (!date && w < 0 && ["в", "у", "во"].includes(low) && i + 1 < tok.length) { const w2 = wdOf(tok[i + 1].toLowerCase().replace(/,$/, "")); if (w2 >= 0) { w = w2; i++; } }
+    if (!date && w >= 0) { date = addDays(today, ((w - wday(today) + 7) % 7) || 7); continue; }
+    const dm = low.match(/^(\d{1,2})[.\/](\d{1,2})(?:[.\/](\d{2,4}))?$/);
+    if (!date && dm) { const d = +dm[1], m = +dm[2]; let y = dm[3] ? +dm[3] : +today.slice(0, 4); if (y < 100) y += 2000;
+      if (d >= 1 && d <= 31 && m >= 1 && m <= 12) { let iso = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`; if (!dm[3] && iso < today) iso = `${y + 1}${iso.slice(4)}`; date = iso; continue; } }
+    if (!time && /^\d{1,2}:\d{2}$/.test(low)) { const t = asTime(low); if (t) { time = t; continue; } }
+    if (!time && (low === "о" || low === "об") && i + 1 < tok.length) { const t = asTime(tok[i + 1].replace(/,$/, "")); if (t) { time = t; i++; continue; } }
+    keep.push(raw);
+  }
+  if (time && !date) date = today;
+  return { title: keep.join(" ").trim(), date, time, prio };
+}
+
+// ---------- відображення ----------
+const prioRank = (p) => (p === 1 ? 0 : p === 2 ? 1 : p === 3 ? 3 : 2);
+const byDue = (a, b) => (a.due || "9999").localeCompare(b.due || "9999") || (a.time || "99").localeCompare(b.time || "99") || prioRank(a.prio) - prioRank(b.prio);
+const byPrio = (a, b) => prioRank(a.prio) - prioRank(b.prio) || (a.due || "9999").localeCompare(b.due || "9999") || (a.time || "99").localeCompare(b.time || "99");
+function renderChip() {
+  const c = $("#fileChip"), pend = rows.filter(changed).length;
+  if (needPerm) { c.className = "chip bad"; c.innerHTML = `🔒 ${h(fileName)} — натисни, щоб дозволити доступ`; }
+  else if (handle) { c.className = "chip ok"; c.textContent = `📄 ${fileName}`; }
+  else { c.className = "chip"; c.textContent = FS ? "Файл не відкрито — дані в браузері" : "Дані в браузері"; }
+  $("#syncBtn").textContent = pend ? `⇅ Синхронізувати (${pend})` : "⇅ Синхронізувати";
+}
+function rowHTML(r) {
+  const t = todayISO(), over = !r.done && r.due && r.due < t;
+  const meta = [r.due ? `<span class="${over ? "over" : ""}">📅 ${fmtDate(r.due)}${r.time ? " " + r.time : ""}</span>` : "", r.prio ? `<span><b style="color:var(--p${r.prio})">●</b> ${PRIO_SHORT[r.prio]}</span>` : "", r.desc ? "<span>📝</span>" : ""].join("");
+  return `<div class="row ${r.done ? "done" : ""} ${r.prio ? "p" + r.prio : ""}" data-id="${h(r.id)}">
+    <span class="cb" data-tg="${h(r.id)}">${r.done ? "✓" : ""}</span>
+    <div style="flex:1;min-width:0"><div class="t">${h(r.title)}</div>${meta ? `<div class="meta">${meta}</div>` : ""}</div>
+    ${changed(r) ? `<span class="dot" title="Не синхронізовано"></span>` : ""}</div>`;
+}
+function render() {
+  renderChip();
+  const t = todayISO(), act = rows.filter((r) => !r.done), dn = rows.filter((r) => r.done);
+  $("#tabs").innerHTML = [["active", `Активні · ${act.length}`], ["prio", "За пріоритетом"], ["done", `Виконані · ${dn.length}`]]
+    .map(([k, l]) => `<button class="tab ${tab === k ? "on" : ""}" data-tab="${k}">${l}</button>`).join("");
+  const grp = (title, list, cls = "") => list.length ? `<div class="grp ${cls}">${title} · ${list.length}</div><div class="list">${list.map(rowHTML).join("")}</div>` : "";
+  let html = "";
+  if (tab === "done") html = grp("Виконані", dn.slice().sort((a, b) => (b.upd || "").localeCompare(a.upd || "")));
+  else if (tab === "prio") html = [[1, "Високий"], [2, "Середній"], [null, "Без пріоритету"], [3, "Низький"]].map(([p, n]) => grp(n, act.filter((r) => (r.prio ?? null) === p).sort(byDue))).join("");
+  else {
+    const wEnd = addDays(t, 7);
+    html = grp("Прострочені", act.filter((r) => r.due && r.due < t).sort(byPrio), "over") + grp("Сьогодні", act.filter((r) => r.due === t).sort(byPrio))
+      + grp("Завтра", act.filter((r) => r.due === addDays(t, 1)).sort(byPrio)) + grp("Наступні 7 днів", act.filter((r) => r.due > addDays(t, 1) && r.due <= wEnd).sort(byDue))
+      + grp("Пізніше", act.filter((r) => r.due > wEnd).sort(byDue)) + grp("Без строку", act.filter((r) => !r.due).sort(byPrio));
+  }
+  $("#list").innerHTML = html || `<div class="empty">${rows.length ? "Тут порожньо" : "Задач ще немає. Додай першу вище або відкрий файл у ⚙︎."}</div>`;
+  const b = [];
+  if (!FS) b.push("Цей браузер не вміє працювати з файлом напряму — задачі зберігаються в браузері. Відкрий сторінку в Chrome або Edge, щоб працювати з CSV-файлом.");
+  else if (!handle && !needPerm) b.push(`Задачі зараз лише в браузері. <a href="#" id="bOpen">Відкрий</a> або <a href="#" id="bNew">створи</a> CSV-файл, щоб вони зберігались у ньому.`);
+  if (!LS.get("key", "")) b.push(`Щоб синхронізуватись із загальним Togetherly, додай API-ключ у <a href="#" id="bSet">налаштуваннях</a>.`);
+  $("#banner").innerHTML = b.length ? `<div class="banner">${b.join("<br>")}</div>` : "";
+}
+
+// ---------- редагування ----------
+let editId = null, ePrio = null;
+function openEdit(id) {
+  const r = rows.find((x) => x.id === id); if (!r) return; editId = id; ePrio = r.prio ?? null;
+  $("#eTitle").value = r.title; $("#eDesc").value = r.desc; $("#eDue").value = r.due; $("#eTime").value = r.time; $("#eDone").checked = r.done;
+  renderPrio();
+  $("#eInfo").innerHTML = (r.upd ? `Востаннє змінено в Togetherly: ${h(r.upd)}. ` : "Ще не було в Togetherly. ") + (changed(r) ? "Є несинхронізовані зміни." : "");
+  $("#dEdit").showModal();
+}
+function renderPrio() { $("#ePrio").innerHTML = [[1, "Високий"], [2, "Середній"], [3, "Низький"], [null, "Немає"]].map(([p, n]) => `<button type="button" data-p="${p}" class="${ePrio === p ? "on" : ""}">${n}</button>`).join(""); }
+$("#ePrio").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; ePrio = b.dataset.p === "null" ? null : +b.dataset.p; renderPrio(); };
+$("#fEdit").onsubmit = (e) => {
+  e.preventDefault(); const r = rows.find((x) => x.id === editId); if (!r) return;
+  const title = $("#eTitle").value.trim(); if (!title) return;
+  Object.assign(r, { title, desc: $("#eDesc").value.trim(), due: $("#eDue").value, time: $("#eDue").value ? $("#eTime").value : "", prio: ePrio, done: $("#eDone").checked });
+  $("#dEdit").close(); save(); render();
+};
+$("#eCancel").onclick = () => $("#dEdit").close();
+$("#eDel").onclick = () => {
+  const r = rows.find((x) => x.id === editId); if (!r) return;
+  if (!confirm(`Видалити «${r.title}» з робочого файлу?\n\nУ загальному Togetherly задача залишиться — видали її там окремо.`)) return;
+  rows = rows.filter((x) => x.id !== editId); $("#dEdit").close(); save(); render();
+};
+$("#list").onclick = (e) => {
+  const tg = e.target.closest("[data-tg]");
+  if (tg) { const r = rows.find((x) => x.id === tg.dataset.tg); r.done = !r.done; save(); render(); return; }
+  const row = e.target.closest(".row"); if (row) openEdit(row.dataset.id);
+};
+$("#tabs").onclick = (e) => { const b = e.target.closest("[data-tab]"); if (b) { tab = b.dataset.tab; LS.set("tab", tab); render(); } };
+$("#addForm").onsubmit = (e) => {
+  e.preventDefault(); const p = parseQuick($("#addInp").value); if (!p.title) return;
+  rows.push({ id: uid(), title: p.title, desc: "", due: p.date, time: p.time, prio: p.prio, done: false, upd: "", sync: "" });
+  $("#addInp").value = ""; save(); render(); toast(`Додано${p.date ? " на " + fmtDate(p.date) : ""}`);
+};
+
+// ---------- синхронізація ----------
+const toApi = (r) => ({ ext_id: r.id, title: r.title, description: r.desc, due_date: r.due, due_time: r.time, priority: r.prio ?? "", status: r.done ? "done" : "open" });
+async function sync(mode) {
+  const key = LS.get("key", "");
+  if (!key) { openSettings(); return toast("Спершу додай API-ключ", true); }
+  if (needPerm) await askPerm();
+  const send = mode === "pull" ? rows : rows.filter(changed);
+  const btn = $("#syncBtn"); btn.disabled = true; btn.textContent = "⇅ Синхронізую…";
+  try {
+    const res = await fetch(LS.get("url", DEF_URL) + "/sync/file", { method: "POST", headers: { "content-type": "application/json", "x-api-key": key },
+      body: JSON.stringify({ mode: mode === "pull" ? "pull" : "push", rows: send.map(toApi) }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `Помилка ${res.status}`);
+    const byId = new Map(rows.map((r) => [r.id, r])), sent = new Set(send.map((r) => r.id)); let added = 0, updated = 0;
+    const lost = [];
+    for (const x of data.rows) {
+      if (!x.in_togetherly) { if (mode !== "pull" && !data.errors.some((e) => e.ext_id === x.ext_id)) lost.push(x.title); continue; }
+      const v = { title: x.title, desc: x.description ?? "", due: x.due_date ?? "", time: x.due_time ?? "", prio: x.priority ?? null, done: x.status === "done", upd: x.updated_at ? fmtStamp(x.updated_at) : "" };
+      const r = byId.get(x.ext_id);
+      if (r) { if ((mode === "pull" || !sent.has(r.id)) && fp(r) !== fp(v)) updated++; Object.assign(r, v); r.sync = fp(r); }
+      else { const n = { id: x.ext_id, ...v }; n.sync = fp(n); rows.push(n); added++; }
+    }
+    await save(); render();
+    const st = data.stats;
+    $("#syncRes").innerHTML = `<div class="banner" style="background:var(--acc-2);border-color:#c5dccf">✅ «${h(data.topic.title)}»: ${mode === "pull" ? "дані взято з Togetherly;" : `відправлено ${send.length - data.errors.length - lost.length} (нових у Togetherly ${st.created}, оновлено ${st.updated});`} отримано нових ${added}, оновлено тут ${updated}.`
+      + (lost.length ? `<br>⚠️ Видалені в Togetherly (видали їх тут вручну): ${lost.map(h).join(", ")}` : "")
+      + (data.errors.length ? `<br>⚠️ Помилки: ${data.errors.slice(0, 5).map((e) => h(`${e.title ?? e.ext_id}: ${e.error}`)).join("; ")}` : "") + `</div>`;
+  } catch (e) {
+    toast(/Failed to fetch|NetworkError|Load failed/i.test(e.message) ? "Немає зв'язку з Togetherly (мережа або корпоративний фільтр)" : e.message, true);
+  }
+  btn.disabled = false; renderChip();
+}
+$("#syncBtn").onclick = () => sync("push");
+
+// ---------- налаштування ----------
+function openSettings() {
+  $("#sKey").value = LS.get("key", ""); $("#sUrl").value = LS.get("url", DEF_URL);
+  $("#sFileNote").innerHTML = handle ? `Зараз: <b>${h(fileName)}</b>, ${rows.length} задач. Зміни записуються у файл одразу.` : FS ? "Файл не вибрано — задачі зберігаються лише в браузері." : "Твій браузер не підтримує роботу з файлом: «Відкрити» завантажить CSV у браузер, «Зберегти копію» вивантажить його.";
+  $("#dSet").showModal();
+}
+$("#setBtn").onclick = openSettings;
+$("#sSave").onclick = () => { LS.set("key", $("#sKey").value.trim()); LS.set("url", ($("#sUrl").value.trim() || DEF_URL).replace(/\/+$/, "")); $("#dSet").close(); render(); };
+$("#sOpen").onclick = async () => { $("#dSet").close(); await openFile(); };
+$("#sNew").onclick = async () => { $("#dSet").close(); await newFile(); };
+$("#sExport").onclick = exportCopy;
+$("#sPull").onclick = async () => { LS.set("key", $("#sKey").value.trim()); $("#dSet").close();
+  if (confirm("Перезаписати локальні задачі значеннями з Togetherly? Локальні зміни в задачах з тим самим ID буде втрачено.")) await sync("pull"); };
+$("#banner").onclick = (e) => { const id = e.target.id; if (!id) return; e.preventDefault(); if (id === "bOpen") openFile(); if (id === "bNew") newFile(); if (id === "bSet") openSettings(); };
+
+// ---------- старт ----------
+async function askPerm() {
+  try { if ((await handle.requestPermission({ mode: "readwrite" })) === "granted") { needPerm = false; await loadFromHandle(); } } catch (e) { toast(e.message, true); }
+}
+$("#fileChip").onclick = () => { if (needPerm) askPerm(); else if (!handle) openFile(); };
+(async () => {
+  render();
+  if (!FS) return;
+  try {
+    handle = await idb("readonly", (s) => s.get("h"));
+    if (!handle) return;
+    if ((await handle.queryPermission({ mode: "readwrite" })) === "granted") await loadFromHandle();
+    else { needPerm = true; render(); }
+  } catch { handle = null; render(); }
+})();
+</script>
+</body>
+</html>
