@@ -88,6 +88,7 @@ code{background:#ebe6db;border-radius:5px;padding:1px 5px;font-size:13px}
     <div class="fld"><label>Час</label><input class="input" type="time" id="eTime"></div>
   </div>
   <div class="fld"><label>Пріоритет</label><div class="seg" id="ePrio"></div></div>
+  <div class="fld"><label>Нагадування (через «;»)</label><input class="input" id="eRem" placeholder="2026-11-25 09:00; 2026-11-26 18:00"></div>
   <div class="fld"><label><input type="checkbox" id="eDone"> Виконано</label></div>
   <div class="note" id="eInfo"></div>
   <div class="acts">
@@ -126,7 +127,7 @@ code{background:#ebe6db;border-radius:5px;padding:1px 5px;font-size:13px}
 // Колонка «Синхр» — відбиток рядка на момент останньої синхронізації: якщо рядок змінено (тут, агентом
 // чи вручну у файлі), відбиток не збігається і задача буде відправлена в Togetherly.
 const DEF_URL = "https://fciaawuxdyeqhnbqhljs.supabase.co/functions/v1/togetherly-api";
-const HEAD = ["ID", "Задача", "Опис", "Строк", "Час", "Пріоритет", "Готово", "Змінено в Togetherly", "Синхр"];
+const HEAD = ["ID", "Задача", "Опис", "Строк", "Час", "Пріоритет", "Готово", "Нагадування", "Змінено в Togetherly", "Синхр"];
 const PRIO_WORD = { 1: "Високий", 2: "Середній", 3: "Низький" };
 const PRIO_SHORT = { 1: "високий", 2: "середній", 3: "низький" };
 const FS = "showOpenFilePicker" in window;
@@ -135,7 +136,7 @@ const h = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<":
 const LS = { get: (k, d) => { try { return JSON.parse(localStorage.getItem("tw_" + k)) ?? d; } catch { return d; } },
   set: (k, v) => { try { localStorage.setItem("tw_" + k, JSON.stringify(v)); } catch {} } };
 
-let rows = LS.get("rows", []);          // [{id,title,desc,due,time,prio,done,upd,sync}]
+let rows = LS.get("rows", []);          // [{id,title,desc,due,time,prio,done,rem,upd,sync}]
 let handle = null, fileName = LS.get("fileName", ""), lastMod = 0, writing = null, needPerm = false;
 let tab = LS.get("tab", "active");
 
@@ -155,9 +156,16 @@ function normDate(s) { s = String(s ?? "").trim(); let m = s.match(/^(\d{4})-(\d
   m = s.match(/^(\d{1,2})[.\/](\d{1,2})[.\/](\d{4})$/); return m ? `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : ""; }
 function normTime(s) { const m = String(s ?? "").trim().match(/^(\d{1,2}):(\d{2})/); return m && +m[1] < 24 && +m[2] < 60 ? `${m[1].padStart(2, "0")}:${m[2]}` : ""; }
 function normPrio(v) { const s = String(v ?? "").trim().toLowerCase(); if (["1", "високий", "high", "h"].includes(s)) return 1; if (["2", "середній", "medium", "m"].includes(s)) return 2; if (["3", "низький", "low", "l"].includes(s)) return 3; return null; }
+// нагадування: «2026-11-25 09:00; 26.11.2026 18:00» → «2026-11-25 09:00; 2026-11-26 18:00»
+function normRem(v) {
+  const out = [];
+  for (const p of String(v ?? "").split(/[;\n]/)) { const m = p.trim().match(/^(\d{4}-\d{2}-\d{2}|\d{1,2}[.\/]\d{1,2}[.\/]\d{4})[ T]+(\d{1,2}:\d{2})/);
+    if (m && normDate(m[1]) && normTime(m[2])) out.push(`${normDate(m[1])} ${normTime(m[2])}`); }
+  return [...new Set(out)].sort().join("; ");
+}
 const normDone = (v) => v === true || /^(true|так|done|1|✓|готово|виконано|x)$/i.test(String(v ?? "").trim());
 function fp(r) { // відбиток вмісту задачі (FNV-1a)
-  const s = [r.title, r.desc, r.due, r.time, r.prio ?? "", r.done ? 1 : 0].join("␟");
+  const s = [r.title, r.desc, r.due, r.time, r.prio ?? "", r.done ? 1 : 0].concat(r.rem ? [r.rem] : []).join("␟");
   let x = 0x811c9dc5; for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 0x01000193); } return (x >>> 0).toString(36);
 }
 const changed = (r) => fp(r) !== r.sync;
@@ -184,16 +192,16 @@ function csvToRows(text) {
   const head = a[0].map((x) => x.trim().toLowerCase());
   const col = (...n) => head.findIndex((x) => n.some((k) => x === k || x.startsWith(k)));
   const c = { id: col("id"), title: col("задача", "назва", "title", "task"), desc: col("опис", "description"), due: col("строк", "дата", "due"), time: col("час", "time"),
-    prio: col("пріоритет", "priority"), done: col("готово", "статус", "done", "status"), upd: col("змінено", "updated"), sync: col("синхр", "_sync") };
+    prio: col("пріоритет", "priority"), done: col("готово", "статус", "done", "status"), upd: col("змінено", "updated"), sync: col("синхр", "_sync"), rem: col("нагадування", "reminder") };
   if (c.title < 0) throw new Error("У першому рядку файлу немає колонки «Задача»");
   const g = (r, i) => (i >= 0 ? (r[i] ?? "").trim() : "");
   return a.slice(1).map((r) => { const due = normDate(g(r, c.due));
     return { id: g(r, c.id) || "", title: g(r, c.title), desc: g(r, c.desc), due, time: due ? normTime(g(r, c.time)) : "", prio: normPrio(g(r, c.prio)),
-      done: normDone(g(r, c.done)), upd: g(r, c.upd), sync: g(r, c.sync) }; }).filter((r) => r.title);
+      done: normDone(g(r, c.done)), rem: normRem(g(r, c.rem)), upd: g(r, c.upd), sync: g(r, c.sync) }; }).filter((r) => r.title);
 }
 function rowsToCSV(list) {
   const q = (v) => { const s = String(v ?? ""); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  return "﻿" + [HEAD.join(",")].concat(list.map((r) => [r.id, r.title, r.desc, r.due, r.time, PRIO_WORD[r.prio] ?? "", r.done ? "TRUE" : "FALSE", r.upd, r.sync].map(q).join(","))).join("\r\n") + "\r\n";
+  return "﻿" + [HEAD.join(",")].concat(list.map((r) => [r.id, r.title, r.desc, r.due, r.time, PRIO_WORD[r.prio] ?? "", r.done ? "TRUE" : "FALSE", r.rem ?? "", r.upd, r.sync].map(q).join(","))).join("\r\n") + "\r\n";
 }
 
 // ---------- файл ----------
@@ -296,7 +304,7 @@ function renderChip() {
 }
 function rowHTML(r) {
   const t = todayISO(), over = !r.done && r.due && r.due < t;
-  const meta = [r.due ? `<span class="${over ? "over" : ""}">📅 ${fmtDate(r.due)}${r.time ? " " + r.time : ""}</span>` : "", r.prio ? `<span><b style="color:var(--p${r.prio})">●</b> ${PRIO_SHORT[r.prio]}</span>` : "", r.desc ? "<span>📝</span>" : ""].join("");
+  const meta = [r.due ? `<span class="${over ? "over" : ""}">📅 ${fmtDate(r.due)}${r.time ? " " + r.time : ""}</span>` : "", r.rem && !r.done ? `<span title="${h(r.rem)}">🔔 ${h(r.rem.split("; ").map((x) => fmtDate(x.slice(0, 10)) + " " + x.slice(11)).join(", "))}</span>` : "", r.prio ? `<span><b style="color:var(--p${r.prio})">●</b> ${PRIO_SHORT[r.prio]}</span>` : "", r.desc ? "<span>📝</span>" : ""].join("");
   return `<div class="row ${r.done ? "done" : ""} ${r.prio ? "p" + r.prio : ""}" data-id="${h(r.id)}">
     <span class="cb" data-tg="${h(r.id)}">${r.done ? "✓" : ""}</span>
     <div style="flex:1;min-width:0"><div class="t">${h(r.title)}</div>${meta ? `<div class="meta">${meta}</div>` : ""}</div>
@@ -329,7 +337,7 @@ function render() {
 let editId = null, ePrio = null;
 function openEdit(id) {
   const r = rows.find((x) => x.id === id); if (!r) return; editId = id; ePrio = r.prio ?? null;
-  $("#eTitle").value = r.title; $("#eDesc").value = r.desc; $("#eDue").value = r.due; $("#eTime").value = r.time; $("#eDone").checked = r.done;
+  $("#eTitle").value = r.title; $("#eDesc").value = r.desc; $("#eDue").value = r.due; $("#eTime").value = r.time; $("#eRem").value = r.rem ?? ""; $("#eDone").checked = r.done;
   renderPrio();
   $("#eInfo").innerHTML = (r.upd ? `Востаннє змінено в Togetherly: ${h(r.upd)}. ` : "Ще не було в Togetherly. ") + (changed(r) ? "Є несинхронізовані зміни." : "");
   $("#dEdit").showModal();
@@ -339,7 +347,7 @@ $("#ePrio").onclick = (e) => { const b = e.target.closest("button"); if (!b) ret
 $("#fEdit").onsubmit = (e) => {
   e.preventDefault(); const r = rows.find((x) => x.id === editId); if (!r) return;
   const title = $("#eTitle").value.trim(); if (!title) return;
-  Object.assign(r, { title, desc: $("#eDesc").value.trim(), due: $("#eDue").value, time: $("#eDue").value ? $("#eTime").value : "", prio: ePrio, done: $("#eDone").checked });
+  Object.assign(r, { title, desc: $("#eDesc").value.trim(), due: $("#eDue").value, time: $("#eDue").value ? $("#eTime").value : "", prio: ePrio, rem: normRem($("#eRem").value), done: $("#eDone").checked });
   $("#dEdit").close(); save(); render();
 };
 $("#eCancel").onclick = () => $("#dEdit").close();
@@ -356,12 +364,12 @@ $("#list").onclick = (e) => {
 $("#tabs").onclick = (e) => { const b = e.target.closest("[data-tab]"); if (b) { tab = b.dataset.tab; LS.set("tab", tab); render(); } };
 $("#addForm").onsubmit = (e) => {
   e.preventDefault(); const p = parseQuick($("#addInp").value); if (!p.title) return;
-  rows.push({ id: uid(), title: p.title, desc: "", due: p.date, time: p.time, prio: p.prio, done: false, upd: "", sync: "" });
+  rows.push({ id: uid(), title: p.title, desc: "", due: p.date, time: p.time, prio: p.prio, done: false, rem: "", upd: "", sync: "" });
   $("#addInp").value = ""; save(); render(); toast(`Додано${p.date ? " на " + fmtDate(p.date) : ""}`);
 };
 
 // ---------- синхронізація ----------
-const toApi = (r) => ({ ext_id: r.id, title: r.title, description: r.desc, due_date: r.due, due_time: r.time, priority: r.prio ?? "", status: r.done ? "done" : "open" });
+const toApi = (r) => ({ ext_id: r.id, title: r.title, description: r.desc, due_date: r.due, due_time: r.time, priority: r.prio ?? "", status: r.done ? "done" : "open", reminders: r.rem ?? "" });
 async function sync(mode) {
   const key = LS.get("key", "");
   if (!key) { openSettings(); return toast("Спершу додай API-ключ", true); }
@@ -377,7 +385,7 @@ async function sync(mode) {
     const lost = [];
     for (const x of data.rows) {
       if (!x.in_togetherly) { if (mode !== "pull" && !data.errors.some((e) => e.ext_id === x.ext_id)) lost.push(x.title); continue; }
-      const v = { title: x.title, desc: x.description ?? "", due: x.due_date ?? "", time: x.due_time ?? "", prio: x.priority ?? null, done: x.status === "done", upd: x.updated_at ? fmtStamp(x.updated_at) : "" };
+      const v = { title: x.title, desc: x.description ?? "", due: x.due_date ?? "", time: x.due_time ?? "", prio: x.priority ?? null, done: x.status === "done", rem: normRem(x.reminders), upd: x.updated_at ? fmtStamp(x.updated_at) : "" };
       const r = byId.get(x.ext_id);
       if (r) { if ((mode === "pull" || !sent.has(r.id)) && fp(r) !== fp(v)) updated++; Object.assign(r, v); r.sync = fp(r); }
       else { const n = { id: x.ext_id, ...v }; n.sync = fp(n); rows.push(n); added++; }
